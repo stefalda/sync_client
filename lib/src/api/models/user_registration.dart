@@ -3,6 +3,7 @@ class UserRegistration {
   String? password;
   String? clientId;
   String? clientDescription;
+  bool newRegistration = false;
   bool deleteRemoteData = false;
 
   Map<String, dynamic> toMap() {
@@ -11,6 +12,7 @@ class UserRegistration {
       'password': password,
       'clientId': clientId,
       'clientDescription': clientDescription,
+      'newRegistration': newRegistration,
       'deleteRemoteData': deleteRemoteData
     };
   }

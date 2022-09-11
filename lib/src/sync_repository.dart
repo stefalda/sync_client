@@ -30,6 +30,7 @@ class SyncRepository {
       {required String email,
       required String password,
       required String deviceInfo,
+      required bool newRegistration,
       dbName = defaultDBName}) async {
     const sql = "SELECT * FROM sync_details";
     final rows = await SQLiteWrapper().query(sql, dbName: dbName);
@@ -42,6 +43,7 @@ class SyncRepository {
     userRegistration.password = password;
     userRegistration.clientId = sqliteWrapperSync.newUUID();
     userRegistration.clientDescription = deviceInfo;
+    userRegistration.newRegistration = newRegistration;
     final json = jsonEncode(userRegistration.toMap());
     // dynamic result =
     await _call("$serverUrl/register/$realm", {}, body: json, method: "POST");
