@@ -26,8 +26,11 @@ class SyncRepository {
   //Methods
   /// Effettua la chiamata per registrare e in caso di successo memorizza le credenziali
   // Solleva eccezione se qualcosa non va...
-  Future<void> register(String email, String password, String deviceInfo,
-      {dbName = defaultDBName}) async {
+  Future<void> register(
+      {required String email,
+      required String password,
+      required String deviceInfo,
+      dbName = defaultDBName}) async {
     const sql = "SELECT * FROM sync_details";
     final rows = await SQLiteWrapper().query(sql, dbName: dbName);
     if (rows.isNotEmpty) {
@@ -48,18 +51,21 @@ class SyncRepository {
     //syncConfigured = SyncEnabled.enabled;
   }
 
-  Future<void> unregister(String email, String password, String deviceInfo,
-      {dbName = defaultDBName}) async {
+  Future<void> unregister(
+      {required String email,
+      required String password,
+      required String clientId,
+      dbName = defaultDBName,
+      deleteRemoteData = false}) async {
     final UserRegistration userRegistration = UserRegistration();
     userRegistration.email = email;
     userRegistration.password = password;
-    userRegistration.clientId = sqliteWrapperSync.newUUID();
-    userRegistration.clientDescription = deviceInfo;
+    userRegistration.clientId = clientId;
+    // Don't delete everything unless requested
+    userRegistration.deleteRemoteData = deleteRemoteData;
     final json = jsonEncode(userRegistration.toMap());
     // dynamic result =
     await _call("$serverUrl/unregister/$realm", {}, body: json, method: "POST");
-    await _configureSync(email, password, userRegistration.clientId!,
-        dbName: dbName);
     // DELETE LOGGED DATA
     await SQLiteWrapper().execute("DELETE FROM sync_data", dbName: dbName);
     // DELETE SYNC DETAIL
@@ -116,17 +122,26 @@ class SyncRepository {
   Future<dynamic> _call(String url, Map<String, String?>? params,
       {String? method, Object? body}) async {
     try {
+      final bool isHTTPS = url.indexOf("https") >= 0;
+      if (isHTTPS) {
+        url = url.substring(8);
+      } else {
+        url = url.substring(7);
+      }
       int idx = url.indexOf("/");
       if (idx < 0) {
         idx = url.length;
       }
+
       //ATTENZIONE CHE VA IMPOSTATO A HTTPS IN PRODUZIONE
-      var uri = Uri.http(url.substring(0, idx), url.substring(idx), params);
+      var uri = isHTTPS
+          ? Uri.https(url.substring(0, idx), url.substring(idx), params)
+          : Uri.http(url.substring(0, idx), url.substring(idx), params);
 
       Map<String, String> headers = HashMap();
       headers['Accept'] = 'application/json';
       headers['Content-type'] = 'application/json; charset=utf-8';
-
+      print(body);
       dynamic response;
       switch (method) {
         case "POST":
