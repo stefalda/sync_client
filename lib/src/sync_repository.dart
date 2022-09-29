@@ -291,8 +291,8 @@ class SyncRepository {
     final List<SyncData> syncDataList = List.empty(growable: true);
     for (String tableName in sqliteWrapperSync.tableInfos.keys) {
       final TableInfo tableInfo = sqliteWrapperSync.tableInfos[tableName]!;
-      syncDataList.addAll(
-          await _getSyncData(tableName, tableInfo.keyField, dbName: dbName));
+      syncDataList.addAll(await _getSyncData(tableName, tableInfo.keyField,
+          dbName: dbName, binaryFields: tableInfo.binaryFields));
     }
     /*syncDataList.addAll(
         await _getSyncData("authors", "authorid", binaryFields: ['photo']));
@@ -307,8 +307,7 @@ class SyncRepository {
 
   /// Compila le informazioni da inviare al server generandole nel caso del primo inserimento
   Future<List<SyncData>> _getSyncData(String tableName, String keyField,
-      {List<String> binaryFields = const <String>[],
-      dbName = defaultDBName}) async {
+      {required List<String> binaryFields, dbName = defaultDBName}) async {
     final sql =
         """SELECT sd.operation, sd.clientdate as clientdate, sd.rowguid as _guid, rowData.*
          from sync_data sd LEFT JOIN $tableName as rowData on rowData.$keyField=sd.rowguid
