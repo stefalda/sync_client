@@ -1,14 +1,14 @@
-import 'dart:collection';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:http/http.dart' as http;
 import 'package:sqlite_wrapper/sqlite_wrapper.dart';
 import 'package:sync_client/src/api/models/client_changes.dart';
 import 'package:sync_client/src/api/models/sync_data.dart';
 import 'package:sync_client/src/api/models/sync_details.dart';
 import 'package:sync_client/src/api/models/sync_info.dart';
 import 'package:sync_client/src/api/models/user_registration.dart';
+import 'package:sync_client/src/authentication_helper.dart';
+import 'package:sync_client/src/http_helper.dart';
 import 'package:sync_client/src/sqlite_wrapper_sync.dart';
 import 'package:sync_client/src/table_info.dart';
 
@@ -16,12 +16,16 @@ class SyncRepository {
   final SQLiteWrapperSync sqliteWrapperSync;
   final String serverUrl;
   final String realm;
+  late AuthenticationHelper authenticationHelper;
   bool debug = true;
   //Constructor
   SyncRepository(
       {required this.sqliteWrapperSync,
       required this.serverUrl,
-      required this.realm});
+      required this.realm}) {
+    authenticationHelper = AuthenticationHelper(
+        dbName: defaultDBName, serverUrl: serverUrl, realm: realm);
+  }
 
   //Methods
   /// Effettua la chiamata per registrare e in caso di successo memorizza le credenziali
@@ -46,11 +50,31 @@ class SyncRepository {
     userRegistration.newRegistration = newRegistration;
     final json = jsonEncode(userRegistration.toMap());
     // dynamic result =
-    await _call("$serverUrl/register/$realm", {}, body: json, method: "POST");
+    await HttpHelper.call("$serverUrl/register/$realm", {},
+        body: json, method: "POST");
     await _configureSync(email, password, userRegistration.clientId!,
         dbName: dbName);
     await _logPreviouslyInsertedData(dbName: dbName);
     //syncConfigured = SyncEnabled.enabled;
+  }
+
+  _authenticatedCall(String url, Map<String, String?>? params,
+      {String? method = "GET", Object? body, lastCall = false}) async {
+    final token = await authenticationHelper.getToken();
+    try {
+      return await HttpHelper.call(url, params,
+          body: body,
+          method: method,
+          additionalHeaders:
+              HttpHelper.bearerAuthenticationHeader(token: token!));
+    } on ExpiredTokenException {
+      if (lastCall) rethrow;
+      await authenticationHelper.forceRefreshToken();
+      return await _authenticatedCall(url, params,
+          method: method, body: body, lastCall: true);
+    } catch (ex) {
+      rethrow;
+    }
   }
 
   Future<void> unregister(
@@ -67,7 +91,8 @@ class SyncRepository {
     userRegistration.deleteRemoteData = deleteRemoteData;
     final json = jsonEncode(userRegistration.toMap());
     // dynamic result =
-    await _call("$serverUrl/unregister/$realm", {}, body: json, method: "POST");
+    await _authenticatedCall("$serverUrl/unregister/$realm", {},
+        body: json, method: "POST");
     // DELETE LOGGED DATA
     await SQLiteWrapper().execute("DELETE FROM sync_data", dbName: dbName);
     // DELETE SYNC DETAIL
@@ -120,64 +145,6 @@ class SyncRepository {
     }
   }
 
-  /// Resituisce una MAP dal JSON scaricato o null in caso di errore
-  Future<dynamic> _call(String url, Map<String, String?>? params,
-      {String? method, Object? body}) async {
-    try {
-      final bool isHTTPS = url.indexOf("https") >= 0;
-      if (isHTTPS) {
-        url = url.substring(8);
-      } else {
-        url = url.substring(7);
-      }
-      int idx = url.indexOf("/");
-      if (idx < 0) {
-        idx = url.length;
-      }
-
-      //ATTENZIONE CHE VA IMPOSTATO A HTTPS IN PRODUZIONE
-      var uri = isHTTPS
-          ? Uri.https(url.substring(0, idx), url.substring(idx), params)
-          : Uri.http(url.substring(0, idx), url.substring(idx), params);
-
-      Map<String, String> headers = HashMap();
-      headers['Accept'] = 'application/json';
-      headers['Content-type'] = 'application/json; charset=utf-8';
-      print(body);
-      dynamic response;
-      switch (method) {
-        case "POST":
-          response = await http.post(uri, body: body, headers: headers);
-          break;
-        default:
-          response = await http.get(uri, headers: headers);
-      }
-      if (response.statusCode == 200) {
-        // If the server did return a 200 OK response,
-        // then parse the JSON.
-        try {
-          _debugPrint(response.body);
-          return json.decode(utf8.decode(response.bodyBytes));
-        } catch (e) {
-          // Non è stato possibile decodificare il json
-          return null;
-        }
-      } else if (response.statusCode == 404) {
-        _debugPrint("404 Not Found: $url");
-      } else {
-        // If the server did not return a 200 OK response,
-        // then throw an exception.
-        //throw Exception('Failed to load album');
-        _debugPrint("Error downloading url: $url");
-        throw Exception(response.body);
-      }
-      return null;
-    } catch (e) {
-      _debugPrint(e.toString());
-      rethrow;
-    }
-  }
-
   /// Effettua la chiamata al pull
   Future<List<SyncData>> _pull(
       String clientId, int lastSync, List<SyncData> syncDataList,
@@ -189,8 +156,8 @@ class SyncRepository {
       ..changes = syncDataList;
 
     final json = jsonEncode(clientChanges.toMap(skipRowData: true));
-    dynamic result =
-        await _call("$serverUrl/pull/$realm", {}, body: json, method: "POST");
+    dynamic result = await _authenticatedCall("$serverUrl/pull/$realm", {},
+        body: json, method: "POST");
 
     SyncDetails syncDetails = SyncDetails.fromJson(result);
     // Adesso rimuove da syncDataList le chiavi indicate dal server
@@ -216,8 +183,8 @@ class SyncRepository {
 
     final json = jsonEncode(clientChanges.toMap(skipRowData: false));
     _debugPrint("PUSH ${syncDataList.length} rows");
-    dynamic result =
-        await _call("$serverUrl/push/$realm", {}, body: json, method: "POST");
+    dynamic result = await _authenticatedCall("$serverUrl/push/$realm", {},
+        body: json, method: "POST");
     SyncInfo syncInfo = SyncInfo.fromJson(result);
 
     return syncInfo;

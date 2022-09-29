@@ -4,7 +4,6 @@ import 'package:sync_client/sync_client.dart';
 import 'package:uuid/uuid.dart';
 
 import './db/models/sync_data.dart';
-import './db/models/sync_details.dart';
 
 enum SyncEnabled { unknown, enabled, disabled }
 
@@ -29,7 +28,7 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
       {dbName = defaultDBName, force = false}) async {
     // Check if the table is configured for logging in the tableInfos
     if (!tableInfos.keys.contains(tableName)) return;
-    if (dbName == null) dbName = defaultDBName;
+    dbName ??= defaultDBName;
     debugPrint("LOG OPERATION $tableName - $operation - rowguid $rowguid");
     // Check if the client is configured for logging
     final shouldLog = await isSyncConfigured(dbName: dbName);
@@ -214,16 +213,15 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
   */
 
   String newUUID() {
-    return _uuid.v1();
+    return _uuid.v4();
   }
 
   /// Create the sync tables
   Future<void> initSyncTables({dbName = defaultDBName}) async {
     final sql = """
               CREATE TABLE IF NOT EXISTS sync_data (id integer PRIMARY KEY AUTOINCREMENT NOT NULL,   tablename varchar(255) NOT NULL,  rowguid varchar(36) NOT NULL,  operation char(1) NOT NULL,  clientdate timestamp(128) NOT NULL);
-              CREATE TABLE IF NOT EXISTS sync_details (clientid varchar(36) PRIMARY KEY NOT NULL, useremail varchar(255) NOT NULL, userpassword varchar(255) NOT NULL, lastsync timestamp(128));
+              CREATE TABLE IF NOT EXISTS sync_details (clientid varchar(36) PRIMARY KEY NOT NULL, useremail varchar(255) NOT NULL, userpassword varchar(255) NOT NULL, lastsync timestamp(128), accesstoken varchar(36), refreshtoken varchar(36), accesstokenexpiration timestamp(128));
           """;
     await execute(sql, dbName: dbName);
   }
-
 }

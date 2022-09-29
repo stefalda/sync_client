@@ -15,3 +15,5 @@ export 'src/db/models/sync_details.dart';
 export 'src/sqlite_wrapper_sync.dart';
 export 'src/sync_repository.dart';
 export 'src/table_info.dart';
+
+export 'src/http_helper.dart';

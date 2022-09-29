@@ -21,10 +21,18 @@ void main() async {
       realm: "TODO_TEST");
 
   test("Register a new user", () async {
-    await syncRepository.register("test@test.com", "test", "TEST OS",
-        dbName: mainDBName);
-    await syncRepository.register("test@test.com", "test", "TEST OS",
-        dbName: secondaryDBName);
+    await syncRepository.register(
+        email: "test@test.com",
+        password: "test",
+        deviceInfo: "TEST OS",
+        dbName: mainDBName,
+        newRegistration: true);
+    await syncRepository.register(
+        email: "test@test.com",
+        password: "test",
+        deviceInfo: "TEST OS",
+        dbName: secondaryDBName,
+        newRegistration: false);
   });
 
   test("Perform a sync", () async {

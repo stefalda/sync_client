@@ -11,7 +11,7 @@ import 'package:sqlite_wrapper_sample/sync/sync_helper.dart';
 import 'package:sqlite_wrapper_sample/sync/table_info.dart';
 import 'package:uuid/uuid.dart';
 */
-const defaultUrl = "localhost:8080";
+//const defaultUrl = "localhost:8080";
 
 /// Library to perform sync operations provided as a Singleton
 ///
@@ -26,6 +26,7 @@ const defaultUrl = "localhost:8080";
 ///
 /// setServerUrl(String url)
 ///
+/*
 class SyncApiHelper {
   static final SyncApiHelper _singleton = SyncApiHelper._internal();
 
@@ -37,3 +38,4 @@ class SyncApiHelper {
 
   SyncApiHelper._internal();
 }
+*/

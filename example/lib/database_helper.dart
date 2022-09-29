@@ -121,9 +121,17 @@ class DatabaseHelper {
         realm: "TODOS");
     if (!await syncRepository.isConfigured(dbName: dbName1)) {
       await syncRepository.register(
-          "test@test.com", "test", dbName: dbName1, "MACOS");
+          email: "test@test.com",
+          newRegistration: true,
+          password: "test",
+          dbName: dbName1,
+          deviceInfo: "MACOS");
       await syncRepository.register(
-          "test@test.com", "test", dbName: dbName2, "MACOS");
+          newRegistration: false,
+          email: "test@test.com",
+          password: "test",
+          dbName: dbName2,
+          deviceInfo: "MACOS");
     }
     await syncRepository.sync(dbName: dbName1);
     await syncRepository.sync(dbName: dbName2);
