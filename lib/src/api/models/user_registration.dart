@@ -1,4 +1,5 @@
 class UserRegistration {
+  String? name;
   String? email;
   String? password;
   String? clientId;
@@ -8,6 +9,7 @@ class UserRegistration {
 
   Map<String, dynamic> toMap() {
     return {
+      'name': name,
       'email': email,
       'password': password,
       'clientId': clientId,

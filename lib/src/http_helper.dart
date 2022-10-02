@@ -6,6 +6,11 @@ class CustomHttpException implements Exception {
   final int statusCode;
   final String message;
   CustomHttpException({required this.statusCode, required this.message});
+
+  @override
+  String toString() {
+    return "CustomHttpException - $statusCode: $message";
+  }
 }
 
 class HttpHelper {
@@ -63,13 +68,13 @@ class HttpHelper {
         // If the server did not return a 200 OK response,
         // then throw an exception.
         //throw Exception('Failed to load album');
-        print("Error downloading url: $url");
+        print(
+            "${response.statusCode} - Error downloading url: $url - ${response.body}");
         throw CustomHttpException(
             statusCode: response.statusCode, message: response.body);
       }
       return null;
-    }
-    catch (e) {
+    } catch (e) {
       // It's not possible to get the real exception because of the
       // multiplatform nature of the http package
       if (e.toString().contains('Connection refused')) {

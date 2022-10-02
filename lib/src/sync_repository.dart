@@ -31,7 +31,8 @@ class SyncRepository {
   /// Effettua la chiamata per registrare e in caso di successo memorizza le credenziali
   // Solleva eccezione se qualcosa non va...
   Future<void> register(
-      {required String email,
+      {required String name,
+      required String email,
       required String password,
       required String deviceInfo,
       required bool newRegistration,
@@ -43,16 +44,21 @@ class SyncRepository {
     }
 
     final UserRegistration userRegistration = UserRegistration();
+    userRegistration.name = name;
     userRegistration.email = email;
     userRegistration.password = password;
     userRegistration.clientId = sqliteWrapperSync.newUUID();
     userRegistration.clientDescription = deviceInfo;
     userRegistration.newRegistration = newRegistration;
     final json = jsonEncode(userRegistration.toMap());
-    // dynamic result =
-    await HttpHelper.call("$serverUrl/register/$realm", {},
+    dynamic result = await HttpHelper.call("$serverUrl/register/$realm", {},
         body: json, method: "POST");
-    await _configureSync(email, password, userRegistration.clientId!,
+    // Save the name
+    if (!newRegistration && name.isEmpty) {
+      name = result['user']['name'];
+    }
+
+    await _configureSync(name, email, password, userRegistration.clientId!,
         dbName: dbName);
     await _logPreviouslyInsertedData(dbName: dbName);
     //syncConfigured = SyncEnabled.enabled;
@@ -347,12 +353,13 @@ class SyncRepository {
   }
 
   /// Memorizza sul DB le credenziali scambiate con il server
-  Future<void> _configureSync(String email, String password, String clientId,
+  Future<void> _configureSync(
+      String name, String email, String password, String clientId,
       {dbName = defaultDBName}) async {
     const sqlUpdate =
-        "INSERT INTO sync_details (clientid, useremail, userpassword) values (?,?,?)";
+        "INSERT INTO sync_details (name, clientid, useremail, userpassword) values (?,?,?,?)";
     await SQLiteWrapper().execute(sqlUpdate,
-        params: [clientId, email, password], dbName: dbName);
+        params: [name, clientId, email, password], dbName: dbName);
   }
 
   /// Ottiene il client id (clientid e lastsync in una map) o restituisce null qualora non sia stato definito
