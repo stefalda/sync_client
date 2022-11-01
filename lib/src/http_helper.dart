@@ -40,7 +40,7 @@ class HttpHelper {
       headers['Accept'] = 'application/json';
       headers['Content-type'] = 'application/json; charset=utf-8';
       headers.addAll(additionalHeaders);
-      print(body);
+      // print(body);
       dynamic response;
       switch (method) {
         case "POST":
