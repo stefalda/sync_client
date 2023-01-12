@@ -103,12 +103,11 @@ class SyncRepository {
   }
 
   /// Reset the table data for account and sync data
-  Future<void> resetDB({dbName = defaultDBName}) async{
+  Future<void> resetDB({dbName = defaultDBName}) async {
     // DELETE LOGGED DATA
     await SQLiteWrapper().execute("DELETE FROM sync_data", dbName: dbName);
     // DELETE SYNC DETAIL
     await SQLiteWrapper().execute("DELETE FROM sync_details", dbName: dbName);
-
   }
 
   /// Effettua la sincronizzazione
