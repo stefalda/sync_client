@@ -22,12 +22,14 @@ void main() async {
 
   test("Register a new user", () async {
     await syncRepository.register(
+        name: "Test 1",
         email: "test@test.com",
         password: "test",
         deviceInfo: "TEST OS",
         dbName: mainDBName,
         newRegistration: true);
     await syncRepository.register(
+        name: "Test 2",
         email: "test@test.com",
         password: "test",
         deviceInfo: "TEST OS",

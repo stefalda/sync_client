@@ -1,5 +1,6 @@
 import 'package:sqlite_wrapper/sqlite_wrapper_core.dart';
 import 'package:sync_client/src/debug_utils.dart';
+import 'package:sync_client/src/encrypt_helper.dart';
 import 'package:sync_client/sync_client.dart';
 import 'package:uuid/uuid.dart';
 
@@ -13,6 +14,29 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
   /// UUID generator
   final Uuid _uuid = const Uuid();
   final Map<String, TableInfo> tableInfos;
+
+  /// Encryption
+
+  /// Genereate a new Key that must be saved somewhere by calling the setSecretKey (for instance)
+  String generateSecretKey() {
+    return EncryptHelper.generateSecretKey();
+  }
+
+  /// Store the secretKey in the DB in the sync_encryption table
+  setSecretKey(String value, {dbName = defaultDBName}) async {
+    await super.insert({'secretkey': value}, "sync_encryption", dbName: dbName);
+  }
+
+  /// Read the secretKey in the DB, returns null if it's not set...
+  /// If it's set enable encryption by saving it in EncryptHelper
+  Future<String?> getSecretKey({dbName = defaultDBName}) async {
+    String? key = await super.query("SELECT secretkey FROM sync_encryption",
+        singleResult: true, dbName: dbName);
+    if (key != null) {
+      EncryptHelper.secretKey = key;
+    }
+    return key;
+  }
 
   SyncEnabled syncConfigured = SyncEnabled.unknown;
   // Serve per verificare se è in corso una sincronizzazione
@@ -221,6 +245,7 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
     final sql = """
               CREATE TABLE IF NOT EXISTS sync_data (id integer PRIMARY KEY AUTOINCREMENT NOT NULL,   tablename varchar(255) NOT NULL,  rowguid varchar(36) NOT NULL,  operation char(1) NOT NULL,  clientdate timestamp(128) NOT NULL);
               CREATE TABLE IF NOT EXISTS sync_details (clientid varchar(36) PRIMARY KEY NOT NULL, name varchar(255), useremail varchar(255) NOT NULL, userpassword varchar(255) NOT NULL, lastsync timestamp(128), accesstoken varchar(36), refreshtoken varchar(36), accesstokenexpiration timestamp(128));
+              CREATE TABLE IF NOT EXISTS sync_encryption (secretkey String PRIMARY KEY NOT NULL);              
           """;
     await execute(sql, dbName: dbName);
   }

@@ -5,6 +5,9 @@ class TableInfo {
   /// Binary Fields should be encoded as base64
   final List<String> binaryFields;
 
+  /// Encrypted Fields should be encoded as base64
+  final List<String> encryptedFields;
+
   /// Boolesn Fields are transcoded from integers
   // final List<String> booleanFields;
 
@@ -13,13 +16,14 @@ class TableInfo {
 
   /// A Map of aliases that should be transcoded on the server side (@deprecated?)
   Map<String, String> aliasesFields;
-  TableInfo(
-      {required this.keyField,
-       this.binaryFields = const [],
-        //  required this.externalKeys,
-      this.aliasesFields = const {},
-  // this.booleanFields = const []
-   });
+  TableInfo({
+    required this.keyField,
+    this.binaryFields = const [],
+    this.encryptedFields = const [],
+    //  required this.externalKeys,
+    this.aliasesFields = const {},
+    // this.booleanFields = const []
+  });
 }
 /*
 class ExternalKey {

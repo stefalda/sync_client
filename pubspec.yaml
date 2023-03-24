@@ -1,6 +1,6 @@
 name: sync_client
 description: A starting point for Dart libraries or applications.
-version: 1.0.0
+version: 1.0.1
 # homepage: https://www.example.com
 
 environment:
@@ -16,6 +16,7 @@ dependencies:
   uuid:
   http:
   crypt: ^4.2.1
+  encrypt: ^5.0.1
 
 dev_dependencies:
   flutter_lints: ^2.0.0

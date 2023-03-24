@@ -8,6 +8,8 @@ import 'package:sync_client/src/api/models/sync_details.dart';
 import 'package:sync_client/src/api/models/sync_info.dart';
 import 'package:sync_client/src/api/models/user_registration.dart';
 import 'package:sync_client/src/authentication_helper.dart';
+import 'package:sync_client/src/debug_utils.dart';
+import 'package:sync_client/src/encrypt_helper.dart';
 import 'package:sync_client/src/http_helper.dart';
 import 'package:sync_client/src/sqlite_wrapper_sync.dart';
 import 'package:sync_client/src/table_info.dart';
@@ -25,8 +27,14 @@ class SyncRepository {
       required this.realm}) {
     authenticationHelper = AuthenticationHelper(
         dbName: defaultDBName, serverUrl: serverUrl, realm: realm);
+    //  createKey();
   }
-
+/*
+  createKey() async {
+    String secretKey = await sqliteWrapperSync.generateSecretKey();
+    await sqliteWrapperSync.setSecretKey(secretKey);
+  }
+*/
   //Methods
   /// Effettua la chiamata per registrare e in caso di successo memorizza le credenziali
   // Solleva eccezione se qualcosa non va...
@@ -36,6 +44,7 @@ class SyncRepository {
       required String password,
       required String deviceInfo,
       required bool newRegistration,
+      required String secretKey,
       dbName = defaultDBName}) async {
     const sql = "SELECT * FROM sync_details";
     final rows = await SQLiteWrapper().query(sql, dbName: dbName);
@@ -57,6 +66,11 @@ class SyncRepository {
     if (!newRegistration && name.isEmpty) {
       name = result['user']['name'];
     }
+    if (newRegistration) {
+      // GENERATE THE SECRET KEY
+      secretKey = await sqliteWrapperSync.generateSecretKey();
+    }
+    await sqliteWrapperSync.setSecretKey(secretKey);
 
     await _configureSync(name, email, password, userRegistration.clientId!,
         dbName: dbName);
@@ -108,51 +122,61 @@ class SyncRepository {
     await SQLiteWrapper().execute("DELETE FROM sync_data", dbName: dbName);
     // DELETE SYNC DETAIL
     await SQLiteWrapper().execute("DELETE FROM sync_details", dbName: dbName);
+    // DELETE THE SECRET KEY
+    await SQLiteWrapper()
+        .execute("DELETE FROM sync_encryption", dbName: dbName);
   }
 
   /// Effettua la sincronizzazione
   Future<void> sync({dbName = defaultDBName}) async {
-    // Ottieni il clientid
-    var clientInfo = await _getSyncConfigDetails(dbName: dbName);
-    if (clientInfo == null) {
-      throw Exception("You have to initialize the Sync!");
-    }
-    String clientId = clientInfo["clientid"];
-    int lastSync = clientInfo["lastsync"] ?? 0;
+    try {
+      // Ottieni il clientid
+      var clientInfo = await _getSyncConfigDetails(dbName: dbName);
+      if (clientInfo == null) {
+        throw Exception("You have to initialize the Sync!");
+      }
+      String clientId = clientInfo["clientid"];
+      int lastSync = clientInfo["lastsync"] ?? 0;
 
-    // Controlla quali copertine sono già presenti sul server o quali sono "custom"
-    // final synController = SyncCovers();
-    // await synController.checkCustomCovers();
+      // Controlla quali copertine sono già presenti sul server o quali sono "custom"
+      // final synController = SyncCovers();
+      // await synController.checkCustomCovers();
 
-    _debugPrint("Ottieni l'elenco delle modifiche per il db $dbName");
-    // Ottieni l'elenco delle modifiche da inviare
-    List<SyncData> syncDataList = await _getDataToSync(dbName: dbName);
-    for (var element in syncDataList) {
-      _debugPrint(
-          "Table: ${element.tablename} Operation: ${element.operation} Key: ${element.rowguid}");
-    }
+      _debugPrint("Ottieni l'elenco delle modifiche per il db $dbName");
+      // Ottieni l'elenco delle modifiche da inviare
+      List<SyncData> syncDataList = await _getDataToSync(dbName: dbName);
+      for (var element in syncDataList) {
+        _debugPrint(
+            "Table: ${element.tablename} Operation: ${element.operation} Key: ${element.rowguid}");
+      }
 
-    // Effettua il pull
-    _debugPrint("Effettua la chiamata PULL");
-    final clientDataList =
-        await _pull(clientId, lastSync, syncDataList, dbName: dbName);
+      // Effettua il pull
+      _debugPrint("Effettua la chiamata PULL");
+      final clientDataList =
+          await _pull(clientId, lastSync, syncDataList, dbName: dbName);
 
-    // Effettua il push dei dati superstiti
-    _debugPrint("Effettua la chiamata PUSH");
-    final SyncInfo syncInfo = await _push(clientId, lastSync, clientDataList);
+      // Effettua il push dei dati superstiti
+      _debugPrint("Effettua la chiamata PUSH");
+      final SyncInfo syncInfo = await _push(clientId, lastSync, clientDataList);
 
-    /// Aggiorna le copertine
-    //  await _downloadCovers();
+      /// Aggiorna le copertine
+      //  await _downloadCovers();
 
-    if (syncInfo.lastSync != null) {
-      // Cancella le righe in syncdata
-      _debugPrint("Cancella le righe da sync_data");
-      await SQLiteWrapper().execute("DELETE FROM sync_data", dbName: dbName);
+      if (syncInfo.lastSync != null) {
+        // Cancella le righe in syncdata
+        _debugPrint("Cancella le righe da sync_data");
+        await SQLiteWrapper().execute("DELETE FROM sync_data", dbName: dbName);
 
-      // Aggiorna la data di ultimo aggiornamento
-      _debugPrint("Aggiorna la data di ultimo aggiornamento");
-      await SQLiteWrapper().execute("UPDATE sync_details SET lastSync = ?",
-          params: [syncInfo.lastSync!.millisecondsSinceEpoch], dbName: dbName);
+        // Aggiorna la data di ultimo aggiornamento
+        _debugPrint("Aggiorna la data di ultimo aggiornamento");
+        await SQLiteWrapper().execute("UPDATE sync_details SET lastSync = ?",
+            params: [syncInfo.lastSync!.millisecondsSinceEpoch],
+            dbName: dbName);
+      }
+    } catch (ex) {
+      //ERROR
+      debugPrint("ERROR DURING SYNC: $ex");
+      rethrow;
     }
   }
 
@@ -260,6 +284,20 @@ class SyncRepository {
             rowData[element] = const Base64Decoder().convert(rowData[element]);
           }
         }
+        // If some columns should be encrypted go ahead...
+        if (tableInfo.encryptedFields.isNotEmpty) {
+          debugPrint("PROCEDI A DECRYPT");
+          // LOAD THE SECRET KEY
+          if (EncryptHelper.secretKey == null) {
+            await sqliteWrapperSync.getSecretKey();
+          }
+          // Should encrypt data
+          for (var fieldName in tableInfo.encryptedFields) {
+            rowData[fieldName] = EncryptHelper.decrypt(rowData[fieldName]);
+          }
+          debugPrint(rowData);
+        }
+
         // Se abbiamo delle colonne di cui cambiare il nome
         tableInfo.aliasesFields.forEach((key, value) {
           rowData[value] = rowData[key];
@@ -303,22 +341,18 @@ class SyncRepository {
     for (String tableName in sqliteWrapperSync.tableInfos.keys) {
       final TableInfo tableInfo = sqliteWrapperSync.tableInfos[tableName]!;
       syncDataList.addAll(await _getSyncData(tableName, tableInfo.keyField,
-          dbName: dbName, binaryFields: tableInfo.binaryFields));
+          dbName: dbName,
+          binaryFields: tableInfo.binaryFields,
+          encryptedFields: tableInfo.encryptedFields));
     }
-    /*syncDataList.addAll(
-        await _getSyncData("authors", "authorid", binaryFields: ['photo']));
-    syncDataList.addAll(await _getSyncData("categories", "categoryid"));
-
-    syncDataList.addAll(await _getSyncData("books", "bookid"));
-    syncDataList.addAll(
-        await _getSyncData("covers", "coverid", binaryFields: ['cover']));
-        */
     return syncDataList;
   }
 
   /// Compila le informazioni da inviare al server generandole nel caso del primo inserimento
   Future<List<SyncData>> _getSyncData(String tableName, String keyField,
-      {required List<String> binaryFields, dbName = defaultDBName}) async {
+      {required List<String> binaryFields,
+      required List<String> encryptedFields,
+      dbName = defaultDBName}) async {
     final sql =
         """SELECT sd.operation, sd.clientdate as clientdate, sd.rowguid as _guid, rowData.*
          from sync_data sd LEFT JOIN $tableName as rowData on rowData.$keyField=sd.rowguid
@@ -329,7 +363,7 @@ class SyncRepository {
          """;
     List<SyncData> data = List.empty(growable: true);
     final rows = await SQLiteWrapper().query(sql, dbName: dbName);
-    rows.forEach((Map<String, dynamic> row) {
+    for (Map<String, dynamic> row in rows) {
       SyncData syncData = SyncData();
       syncData.rowguid = row["_guid"] as String;
       syncData.tablename = tableName;
@@ -349,11 +383,26 @@ class SyncRepository {
           rowData[field] = base64Encode(rowData[field] as Uint8List);
         }
       }
+      // If some columns should be encrypted go ahead...
+      if (encryptedFields.isNotEmpty) {
+        debugPrint("PROCEDI A ENCRYPT");
+
+        /// Load the secretKey is it's still not set...
+        if (EncryptHelper.secretKey == null) {
+          await sqliteWrapperSync.getSecretKey();
+        }
+        // Should encrypt data
+        for (var fieldName in encryptedFields) {
+          rowData[fieldName] = EncryptHelper.encrypt(rowData[fieldName]);
+        }
+        debugPrint(rowData);
+      }
+
       rowData.removeWhere(
           (key, value) => key == "operation" || key == "clientdate");
       syncData.rowData = rowData;
       data.add(syncData);
-    });
+    }
     return data;
   }
 
