@@ -26,12 +26,15 @@ class EncryptHelper {
     return _encrypter!;
   }
 
-  static String encrypt(String sourceString) {
+  static String? encrypt(String? sourceString) {
+    if (sourceString == null || sourceString == "") return sourceString;
     final encrypted = _getEncrypter().encrypt(sourceString, iv: iv);
     return encrypted.base64;
   }
 
-  static String decrypt(String encryptedString) {
+  static String? decrypt(String? encryptedString) {
+    if (encryptedString == null || encryptedString == "")
+      return encryptedString;
     final Encrypted encrypted = Encrypted.fromBase64(encryptedString);
     return _getEncrypter().decrypt(encrypted, iv: iv);
   }

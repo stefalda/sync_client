@@ -249,4 +249,23 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
           """;
     await execute(sql, dbName: dbName);
   }
+
+  /// Cycle to all the synced tables and populate them with datas...
+  Future<void> insertInitialSyncData() async {
+    final now = DateTime.now();
+    for (String tablename in tableInfos.keys) {
+      final TableInfo? tableInfo = tableInfos[tablename];
+      await _insertInitialSyncData(tablename, tableInfo!.keyField, now);
+    }
+  }
+
+  /// Perform the insert for the specific table
+  Future<void> _insertInitialSyncData(
+      String tablename, String keyfield, DateTime now,
+      {String dbName = defaultDBName}) async {
+    await execute(
+        """INSERT INTO sync_data (tablename, rowguid, operation, clientdate)
+                    SELECT '$tablename', $keyfield, 'I', ? FROM $tablename LEFT JOIN sync_data on sync_data.rowguid=$keyfield WHERE sync_data.rowguid is null""",
+        params: [now.millisecondsSinceEpoch], dbName: dbName);
+  }
 }
