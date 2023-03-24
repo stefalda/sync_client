@@ -68,7 +68,7 @@ class SyncRepository {
     }
     if (newRegistration) {
       // GENERATE THE SECRET KEY
-      secretKey = await sqliteWrapperSync.generateSecretKey();
+      secretKey = sqliteWrapperSync.generateSecretKey();
     }
     await sqliteWrapperSync.setSecretKey(secretKey);
 
@@ -286,7 +286,7 @@ class SyncRepository {
         }
         // If some columns should be encrypted go ahead...
         if (tableInfo.encryptedFields.isNotEmpty) {
-          debugPrint("PROCEDI A DECRYPT");
+          //debugPrint("PROCEDI A DECRYPT");
           // LOAD THE SECRET KEY
           if (EncryptHelper.secretKey == null) {
             await sqliteWrapperSync.getSecretKey();
@@ -295,7 +295,7 @@ class SyncRepository {
           for (var fieldName in tableInfo.encryptedFields) {
             rowData[fieldName] = EncryptHelper.decrypt(rowData[fieldName]);
           }
-          debugPrint(rowData);
+          //debugPrint(rowData);
         }
 
         // Se abbiamo delle colonne di cui cambiare il nome
@@ -385,7 +385,7 @@ class SyncRepository {
       }
       // If some columns should be encrypted go ahead...
       if (encryptedFields.isNotEmpty) {
-        debugPrint("PROCEDI A ENCRYPT");
+        //debugPrint("PROCEDI A ENCRYPT");
 
         /// Load the secretKey is it's still not set...
         if (EncryptHelper.secretKey == null) {
@@ -395,7 +395,7 @@ class SyncRepository {
         for (var fieldName in encryptedFields) {
           rowData[fieldName] = EncryptHelper.encrypt(rowData[fieldName]);
         }
-        debugPrint(rowData);
+        //debugPrint(rowData);
       }
 
       rowData.removeWhere(
