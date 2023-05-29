@@ -109,12 +109,12 @@ class HttpHelper {
             "${response?.statusCode} - Error downloading url: $url - ${response?.data}");
         String message;
         if (response!.data is Map) {
-          message = response!.data['message'];
+          message = response.data['message'];
         } else {
-          message = response!.data.toString();
+          message = response.data.toString();
         }
         throw CustomHttpException(
-            statusCode: response?.statusCode ?? 500, message: message);
+            statusCode: response.statusCode ?? 500, message: message);
       }
     } catch (e) {
       // It's not possible to get the real exception because of the
