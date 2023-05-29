@@ -126,6 +126,7 @@ class DatabaseHelper {
           newRegistration: true,
           password: "test",
           dbName: dbName1,
+          secretKey: "",
           deviceInfo: "MACOS");
       await syncRepository.register(
           name: "Test 2",
@@ -133,6 +134,7 @@ class DatabaseHelper {
           email: "test@test.com",
           password: "test",
           dbName: dbName2,
+          secretKey: "",
           deviceInfo: "MACOS");
     }
     await syncRepository.sync(dbName: dbName1);

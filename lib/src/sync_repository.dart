@@ -173,9 +173,10 @@ class SyncRepository {
             params: [syncInfo.lastSync!.millisecondsSinceEpoch],
             dbName: dbName);
       }
-    } catch (ex) {
+    } catch (ex, stacktrace) {
       //ERROR
       debugPrint("ERROR DURING SYNC: $ex");
+      debugPrint(stacktrace);
       rethrow;
     }
   }

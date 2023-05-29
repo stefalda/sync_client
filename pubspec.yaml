@@ -1,6 +1,6 @@
 name: sync_client
-description: A starting point for Dart libraries or applications.
-version: 1.0.1
+description: A library to sync based on sqlite_wrapper
+version: 1.0.2
 # homepage: https://www.example.com
 
 environment:
@@ -14,9 +14,11 @@ dependencies:
   path: # Required to compute path
   #sqlite3_flutter_libs: ^0.5.7 # Required by Android
   uuid:
-  http:
+  #http:
   crypt: ^4.2.1
+  crypto: ^3.0.3
   encrypt: ^5.0.1
+  dio: ^5.1.2
 
 dev_dependencies:
   flutter_lints: ^2.0.0

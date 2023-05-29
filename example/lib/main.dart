@@ -42,9 +42,9 @@ class HomePage extends StatelessWidget {
         // the App.build method, and use it to set our appbar title.
         title: Text(title),
       ),
-      body: Row(
+      body: const Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: const [
+          children: [
             TodoList(
               dbName: dbName1,
             ),

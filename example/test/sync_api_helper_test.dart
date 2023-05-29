@@ -27,6 +27,7 @@ void main() async {
         password: "test",
         deviceInfo: "TEST OS",
         dbName: mainDBName,
+        secretKey: "",
         newRegistration: true);
     await syncRepository.register(
         name: "Test 2",
@@ -34,6 +35,7 @@ void main() async {
         password: "test",
         deviceInfo: "TEST OS",
         dbName: secondaryDBName,
+        secretKey: "",
         newRegistration: false);
   });
 

@@ -1,0 +1,112 @@
+
+
+
+The library uses the SQLiteWrapper but extends its main class by creating the SQLiteWrapperSync class that implements a serie of methods to store all the database changes that later can be sync.
+
+The SQLiteWrapperSync MUST be instantiated by passing the configuration of all the tables that should be sync with a serie of specific information (a Map of <String,TableInfo>) like:
+	- table name - the key of the Map
+	- keyField - the table key 
+	- encryptedFields - a list of field name that should be encrypted before sending the data to the server
+	- binaryFields - a list of fields that should be encoded to base64 
+
+ SQLiteWrapperSync db = SQLiteWrapperSync(tableInfos: {
+    "notes": TableInfo(
+        keyField: "guid",
+        binaryFields: [],
+        encryptedFields: ['title', 'description', 'sourceLink']),
+    "items": TableInfo(
+        keyField: "guid", encryptedFields: ['title', 'link', 'uom']
+        ),
+    "tags": TableInfo(
+        keyField: "guid", binaryFields: [], encryptedFields: ['title']),
+    "notes_tags": TableInfo(keyField: "guid", binaryFields: []
+        ),
+    "attachments": TableInfo(
+      keyField: "guid",
+      binaryFields: [
+        "data"
+      ],
+    ),
+  }); 
+
+
+Then you can proceed to opening the DB:
+
+ await db.openDB(dbPath,
+        version: 2,
+        onCreate: () async => await _createDB(),
+        onUpgrade: (fromVersion, toVersion) =>
+            _upgrade(fromVersion, toVersion));
+
+
+The main interface to the sync functionality is the SyncRepositry class that needs a reference to the sqliteWrapperSync instance, a remote server url, and a realm that is needed to differentiate various syncing apps .
+
+    syncRepository = SyncRepository(
+        serverUrl: "https://memento.babisoft.com",
+        sqliteWrapperSync: db,
+        realm: "MEMENTO");
+
+
+You can check if the sync is configured and the current client is registered by calling the syncDetails method of the SQLiteWrapperSync class.
+
+final syncDetails = await db.getSyncDetails();
+
+
+Before performing a sync, if the sync details are empty, you should register the user to the sync server by calling the register method of the SyncRepository class:
+
+syncRepository!.register(
+          name: nameController.text.trim(),
+          email: userController.text.trim(),
+          password: passwordController.text.trim(),
+          deviceInfo: await _getDeviceInfo(),
+          secretKey: secretKeyController.text
+              .trim(), // Should be passed only if it's a client registration and NOT a new registration
+          newRegistration: true);
+
+When some fields are in the encryptedFields list of the tableInfo object you should ensure that the ENCRYPTION SECRET KEY has been set in the syncRepository register call, otherwise the library will display an error.
+
+
+
+All the CRUD operations should be done through the SQLiteWrapperSync class that internally log the information needed by the sync process.
+
+ await db.insert(tag.toMap(), Tag.table);
+
+If the operation is done massively or by executing a SQL command yoy can manually log the information by calling the logOperation method specyfing the tableName, the operation and the row key.
+
+ db.execute(
+        "INSERT INTO notes_tags (guid, note_guid, tag_guid) VALUES(?, ?,?);",
+        params: [newGuid, note.guid, tagGuid],
+        tables: [Note.table]);
+    // Manually log the operation
+    db.logOperation("notes_tags", Operation.insert, newGuid);
+
+
+When you want the db to sync you can simply call the method sync() of SyncRepository:
+
+if (await syncRepository!.isConfigured()) {
+        await syncRepository!.sync();
+}
+
+If you want to stop syncing you can perform a call to the unregister method of the syncRepository, that reach out to the sync server to delete the client:
+
+syncRepository!.unregister(
+          email: syncDetails!.useremail,
+          password: syncDetails!.userpassword,
+          clientId: syncDetails!.clientid);
+		  
+Then you can call a reset function, that clears all the tables, and then call the syncRepository's resetDB() method that clear the sync configuration tables. 
+
+  resetDB() async {
+  	// Specific application tables
+    const String sql = """
+        DELETE FROM notes_tags;
+        DELETE FROM tags;
+        DELETE FROM attachments;
+        DELETE FROM items;
+        DELETE FROM notes;
+    """;
+    await db.execute(sql);
+    await syncRepository!.resetDB();
+  }
+  
+.

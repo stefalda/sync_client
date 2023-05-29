@@ -7,10 +7,10 @@ class Instructions extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: Colors.grey[200],
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
+      child: const Padding(
+        padding: EdgeInsets.all(8.0),
         child: Row(
-          children: const [Text("Tap to toggle state - Long press to delete")],
+          children: [Text("Tap to toggle state - Long press to delete")],
         ),
       ),
     );

@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:encrypt/encrypt.dart';
 import 'package:uuid/uuid.dart';
 import 'package:uuid/uuid_util.dart';
@@ -33,8 +36,9 @@ class EncryptHelper {
   }
 
   static String? decrypt(String? encryptedString) {
-    if (encryptedString == null || encryptedString == "")
+    if (encryptedString == null || encryptedString == "") {
       return encryptedString;
+    }
     final Encrypted encrypted = Encrypted.fromBase64(encryptedString);
     return _getEncrypter().decrypt(encrypted, iv: iv);
   }
@@ -42,5 +46,10 @@ class EncryptHelper {
   /// Returns a new AES key to be used to encode/decode
   static String generateSecretKey() {
     return Uuid(options: {'rng': UuidUtil.cryptoRNG}).v4().replaceAll('-', '');
+  }
+
+  static String convertPinToSecretKey(String pin) {
+    Digest hash = sha256.convert(utf8.encode(pin));
+    return hash.toString().substring(0, 32);
   }
 }

@@ -1,6 +1,9 @@
 import 'dart:collection';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+
+import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
+//import 'package:http/http.dart' as http;
 
 class CustomHttpException implements Exception {
   final int statusCode;
@@ -14,12 +17,32 @@ class CustomHttpException implements Exception {
 }
 
 class HttpHelper {
+  static final dio = Dio();
+
+  static void initAdapter() {
+    dio.httpClientAdapter = IOHttpClientAdapter(
+      onHttpClientCreate: (client) {
+        // Config the client.
+        /*client.findProxy = (uri) {
+          // Forward all request to proxy "localhost:8888".
+          // Be aware, the proxy should went through you running device,
+          // not the host platform.
+          return 'PROXY localhost:9090';
+        };*/
+        // You can also create a new HttpClient for Dio instead of returning,
+        // but a client must being returned here.
+        return client;
+      },
+    );
+  }
+
   /// Resituisce una MAP dal JSON scaricato o null in caso di errore
   static Future<dynamic> call(String url, Map<String, String?>? params,
       {String? method,
       Object? body,
       Map<String, String> additionalHeaders = const {}}) async {
     try {
+      /*
       final bool isHTTPS = url.contains("https");
       if (isHTTPS) {
         url = url.substring(8);
@@ -30,11 +53,15 @@ class HttpHelper {
       if (idx < 0) {
         idx = url.length;
       }
+      // Controlla il proxy di sistema
+      //client.findProxy = () => "http://localhost:9090";
 
       //ATTENZIONE CHE VA IMPOSTATO A HTTPS IN PRODUZIONE
       var uri = isHTTPS
           ? Uri.https(url.substring(0, idx), url.substring(idx), params)
           : Uri.http(url.substring(0, idx), url.substring(idx), params);
+  */
+      initAdapter();
 
       Map<String, String> headers = HashMap();
       headers['Accept'] = 'application/json';
@@ -44,36 +71,51 @@ class HttpHelper {
       dynamic response;
       switch (method) {
         case "POST":
-          response = await http.post(uri, body: body, headers: headers);
+          final data = jsonDecode(body as String);
+          response = await dio.post(url,
+              data: data, options: Options(headers: headers));
           break;
         default:
-          response = await http.get(uri, headers: headers);
+          response = await dio.get(url, options: Options(headers: headers));
       }
       if (response.statusCode == 200) {
         // If the server did return a 200 OK response,
         // then parse the JSON.
         try {
-          print(response.body);
-          return json.decode(utf8.decode(response.bodyBytes));
+          print(response.data);
+          // Se non va provare con Options(responseType: ResponseType.bytes)
+          return response.data; //  utf8.decode(response.data.toString()));
         } catch (e) {
           // Non è stato possibile decodificare il json
           return null;
         }
-      } else if (response.statusCode == 404) {
+      }
+    } on DioError catch (e) {
+      if (e.response == null) {
+        throw Exception(e.toString());
+      }
+      print(e);
+      final response = e.response;
+      if (response?.statusCode == 404) {
         print("404 Not Found: $url");
         throw Exception("404 Not found");
-      } else if (response.statusCode == 400) {
+      } else if (response?.statusCode == 403) {
         throw ExpiredTokenException();
       } else {
         // If the server did not return a 200 OK response,
         // then throw an exception.
         //throw Exception('Failed to load album');
         print(
-            "${response.statusCode} - Error downloading url: $url - ${response.body}");
+            "${response?.statusCode} - Error downloading url: $url - ${response?.data}");
+        String message;
+        if (response!.data is Map) {
+          message = response!.data['message'];
+        } else {
+          message = response!.data.toString();
+        }
         throw CustomHttpException(
-            statusCode: response.statusCode, message: response.body);
+            statusCode: response?.statusCode ?? 500, message: message);
       }
-      return null;
     } catch (e) {
       // It's not possible to get the real exception because of the
       // multiplatform nature of the http package
