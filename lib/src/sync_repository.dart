@@ -89,7 +89,12 @@ class SyncRepository {
               HttpHelper.bearerAuthenticationHeader(token: token!));
     } on ExpiredTokenException {
       if (lastCall) rethrow;
-      await authenticationHelper.forceRefreshToken();
+      try {
+        await authenticationHelper.forceRefreshToken();
+      } catch (ex) {
+        // The refreshToken didn't work
+        throw UnauthorizedException();
+      }
       return await _authenticatedCall(url, params,
           method: method, body: body, lastCall: true);
     } catch (ex) {
@@ -482,5 +487,12 @@ class SyncRepository {
     return (await sqliteWrapperSync.query(sql,
             singleResult: true, dbName: dbName)) >
         0;
+  }
+
+  /// Reset syncDetails usually when both tokens are invalid
+  Future<void> deleteSyncDetails({dbName = defaultDBName}) async {
+    await SQLiteWrapper().execute(
+        "DELETE FROM sync_details;DELETE FROM sync_encryption;",
+        dbName: dbName);
   }
 }

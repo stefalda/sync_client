@@ -12,7 +12,7 @@ class CustomHttpException implements Exception {
 
   @override
   String toString() {
-    return "CustomHttpException - $statusCode: $message";
+    return message;
   }
 }
 
@@ -122,7 +122,7 @@ class HttpHelper {
       if (e.toString().contains('Connection refused')) {
         throw ConnectionRefusedException();
       }
-      print(e.toString());
+      //debugPrint(e.toString());
       rethrow;
     }
   }
@@ -145,3 +145,5 @@ class HttpHelper {
 class ExpiredTokenException implements Exception {}
 
 class ConnectionRefusedException implements Exception {}
+
+class UnauthorizedException implements Exception {}

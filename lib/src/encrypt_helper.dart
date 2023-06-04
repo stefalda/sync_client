@@ -50,6 +50,7 @@ class EncryptHelper {
 
   static String convertPinToSecretKey(String pin) {
     Digest hash = sha256.convert(utf8.encode(pin));
+    // print("PIN $pin - ${hash.toString()}");
     return hash.toString().substring(0, 32);
   }
 }

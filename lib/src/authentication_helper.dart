@@ -55,7 +55,7 @@ class AuthenticationHelper {
   Future<SyncDetails> _refreshToken(SyncDetails syncDetails) async {
     Map<String, dynamic> tokenData = await HttpHelper.call(
         "$serverUrl/login/$realm/refreshToken", {},
-        body: jsonEncode({"refresh_token": syncDetails.refreshToken}),
+        body: jsonEncode({"refreshToken": syncDetails.refreshToken}),
         method: 'POST');
     return await _updateSyncDetailsFromTokenData(syncDetails, tokenData);
   }
