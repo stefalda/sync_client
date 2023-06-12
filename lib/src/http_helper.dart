@@ -3,7 +3,8 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
-//import 'package:http/http.dart' as http;
+import 'package:sync_client/src/debug_utils.dart';
+import 'package:sync_client/sync_client.dart';
 
 class CustomHttpException implements Exception {
   final int statusCode;
@@ -92,9 +93,10 @@ class HttpHelper {
       }
     } on DioError catch (e) {
       if (e.response == null) {
-        throw Exception(e.toString());
+        throw SyncException(e.toString(),
+            type: SyncExceptionType.connectionException);
       }
-      print(e);
+      debugPrint(e.toString());
       final response = e.response;
       if (response?.statusCode == 404) {
         print("404 Not Found: $url");
@@ -105,7 +107,7 @@ class HttpHelper {
         // If the server did not return a 200 OK response,
         // then throw an exception.
         //throw Exception('Failed to load album');
-        print(
+        debugPrint(
             "${response?.statusCode} - Error downloading url: $url - ${response?.data}");
         String message;
         if (response!.data is Map) {
@@ -120,7 +122,8 @@ class HttpHelper {
       // It's not possible to get the real exception because of the
       // multiplatform nature of the http package
       if (e.toString().contains('Connection refused')) {
-        throw ConnectionRefusedException();
+        throw SyncException(e.toString(),
+            type: SyncExceptionType.connectionException);
       }
       //debugPrint(e.toString());
       rethrow;

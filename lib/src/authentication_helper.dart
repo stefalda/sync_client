@@ -3,8 +3,8 @@
 import 'dart:convert';
 
 import 'package:sqlite_wrapper/sqlite_wrapper.dart';
-import 'package:sync_client/src/db/models/sync_details.dart';
-import 'package:sync_client/src/http_helper.dart';
+import 'package:sync_client/src/debug_utils.dart';
+import 'package:sync_client/sync_client.dart';
 
 class AuthenticationHelper {
   final String dbName;
@@ -53,11 +53,17 @@ class AuthenticationHelper {
 
   /// Refresh the token and persist data to the DB
   Future<SyncDetails> _refreshToken(SyncDetails syncDetails) async {
-    Map<String, dynamic> tokenData = await HttpHelper.call(
-        "$serverUrl/login/$realm/refreshToken", {},
-        body: jsonEncode({"refreshToken": syncDetails.refreshToken}),
-        method: 'POST');
-    return await _updateSyncDetailsFromTokenData(syncDetails, tokenData);
+    try {
+      Map<String, dynamic> tokenData = await HttpHelper.call(
+          "$serverUrl/login/$realm/refreshToken", {},
+          body: jsonEncode({"refreshToken": syncDetails.refreshToken}),
+          method: 'POST');
+      return await _updateSyncDetailsFromTokenData(syncDetails, tokenData);
+    } on ExpiredTokenException {
+      // Relogin using username and password
+      debugPrint("Something went wrong with refreshToken try to relogin");
+      return await _registerForAToken(syncDetails);
+    }
   }
 
   /// Update the DB data about the token

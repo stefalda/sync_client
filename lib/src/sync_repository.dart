@@ -4,15 +4,13 @@ import 'dart:typed_data';
 import 'package:sqlite_wrapper/sqlite_wrapper.dart';
 import 'package:sync_client/src/api/models/client_changes.dart';
 import 'package:sync_client/src/api/models/sync_data.dart';
-import 'package:sync_client/src/api/models/sync_details.dart';
+import 'package:sync_client/src/api/models/sync_details.dart'
+    as api_sync_details;
 import 'package:sync_client/src/api/models/sync_info.dart';
 import 'package:sync_client/src/api/models/user_registration.dart';
 import 'package:sync_client/src/authentication_helper.dart';
 import 'package:sync_client/src/debug_utils.dart';
-import 'package:sync_client/src/encrypt_helper.dart';
-import 'package:sync_client/src/http_helper.dart';
-import 'package:sync_client/src/sqlite_wrapper_sync.dart';
-import 'package:sync_client/src/table_info.dart';
+import 'package:sync_client/sync_client.dart';
 
 class SyncRepository {
   final SQLiteWrapperSync sqliteWrapperSync;
@@ -44,12 +42,14 @@ class SyncRepository {
       required String password,
       required String deviceInfo,
       required bool newRegistration,
-      required String secretKey,
+      required String
+          secretKey, // If "" the key will be generated automatically
       dbName = defaultDBName}) async {
     const sql = "SELECT * FROM sync_details";
     final rows = await SQLiteWrapper().query(sql, dbName: dbName);
     if (rows.isNotEmpty) {
-      throw Exception("A sync configuration is already present");
+      throw SyncException("A sync configuration is already present",
+          type: SyncExceptionType.syncConfigurationAlreadyPresent);
     }
 
     final UserRegistration userRegistration = UserRegistration();
@@ -60,14 +60,41 @@ class SyncRepository {
     userRegistration.clientDescription = deviceInfo;
     userRegistration.newRegistration = newRegistration;
     final json = jsonEncode(userRegistration.toMap());
-    dynamic result = await HttpHelper.call("$serverUrl/register/$realm", {},
-        body: json, method: "POST");
-    // Save the name
-    if (!newRegistration && name.isEmpty) {
-      name = result['user']['name'];
+    try {
+      // Call the server
+      dynamic result = await HttpHelper.call("$serverUrl/register/$realm", {},
+          body: json, method: "POST");
+
+      // Save the name
+      if (!newRegistration && name.isEmpty) {
+        name = result['user']['name'];
+      }
+    } on CustomHttpException catch (e) {
+      // New Registration
+      if (newRegistration &&
+          e.message.contains("The email is already registered")) {
+        throw SyncException(e.message,
+            type: SyncExceptionType.registerExceptionAlreadyRegistered);
+      }
+      if (newRegistration) {
+        throw SyncException(e.message, type: SyncExceptionType.generic);
+      }
+      // Login
+      if (e.message.contains("email is not registered")) {
+        throw SyncException(e.message,
+            type: SyncExceptionType.loginExceptionUserNotFound);
+      }
+      if (e.message.contains("Wrong username or password")) {
+        throw SyncException(e.message,
+            type: SyncExceptionType.loginExceptionWrongCredentials);
+      }
+
+      throw SyncException(e.message, type: SyncExceptionType.generic);
     }
-    if (newRegistration) {
+    if (newRegistration && secretKey.isEmpty) {
       // GENERATE THE SECRET KEY
+      // If there're no encrypted fields in the
+      // tableInfo it will be never used
       secretKey = sqliteWrapperSync.generateSecretKey();
     }
     await sqliteWrapperSync.setSecretKey(secretKey);
@@ -76,6 +103,7 @@ class SyncRepository {
         dbName: dbName);
     await _logPreviouslyInsertedData(dbName: dbName);
     //syncConfigured = SyncEnabled.enabled;
+    debugPrint("Ready for first sync");
   }
 
   _authenticatedCall(String url, Map<String, String?>? params,
@@ -138,7 +166,8 @@ class SyncRepository {
       // Ottieni il clientid
       var clientInfo = await _getSyncConfigDetails(dbName: dbName);
       if (clientInfo == null) {
-        throw Exception("You have to initialize the Sync!");
+        throw SyncException("You have to configure the Sync!",
+            type: SyncExceptionType.syncConfigurationMissing);
       }
       String clientId = clientInfo["clientid"];
       int lastSync = clientInfo["lastsync"] ?? 0;
@@ -147,7 +176,7 @@ class SyncRepository {
       // final synController = SyncCovers();
       // await synController.checkCustomCovers();
 
-      _debugPrint("Ottieni l'elenco delle modifiche per il db $dbName");
+      _debugPrint("Get the changes list from the DB $dbName");
       // Ottieni l'elenco delle modifiche da inviare
       List<SyncData> syncDataList = await _getDataToSync(dbName: dbName);
       for (var element in syncDataList) {
@@ -179,10 +208,17 @@ class SyncRepository {
             dbName: dbName);
       }
     } catch (ex, stacktrace) {
+      if (ex is SyncException) {
+        rethrow;
+      }
       //ERROR
       debugPrint("ERROR DURING SYNC: $ex");
       debugPrint(stacktrace);
-      rethrow;
+      if (ex.toString().contains("already syncing")) {
+        throw SyncException(ex.toString(),
+            type: SyncExceptionType.alreadySyncing);
+      }
+      throw SyncException(ex.toString(), type: SyncExceptionType.generic);
     }
   }
 
@@ -200,7 +236,8 @@ class SyncRepository {
     dynamic result = await _authenticatedCall("$serverUrl/pull/$realm", {},
         body: json, method: "POST");
 
-    SyncDetails syncDetails = SyncDetails.fromJson(result);
+    api_sync_details.SyncDetails syncDetails =
+        api_sync_details.SyncDetails.fromJson(result);
     // Adesso rimuove da syncDataList le chiavi indicate dal server
     for (var rowguid in syncDetails.outdatedRowsGuid!) {
       syncDataList.removeWhere((element) => element.rowguid == rowguid);
@@ -266,6 +303,7 @@ class SyncRepository {
         // RIMUOVI LA ROWGUID dai campi in modo da essere sicuro della posizione
         if (syncData.rowData == null) {
           _debugPrint("MANCANO I DATI!");
+          break;
         }
         final rowData = Map<String, dynamic>.from(syncData.rowData!);
         rowData.removeWhere(
@@ -284,7 +322,9 @@ class SyncRepository {
             rowData[externalKey.fieldName] = res!["value"];
           }
         }*/
-        // Se uno dei valori è un'immagine in base64 occorre trascodificarla...
+
+        // If a field valus contains binary data is encoded in base64 and
+        // must be decoded
         for (var element in tableInfo.binaryFields) {
           if (rowData[element] != null) {
             rowData[element] = const Base64Decoder().convert(rowData[element]);
@@ -316,9 +356,15 @@ class SyncRepository {
             rowData[key] = rowData[key] == true ? 1 : 0;
           }
         }*/
+        // ADD to update other fields that must be set to null
+        await _addNullFields(syncData.tablename!, tableInfo.keyField, rowData);
+
         // Valori
         final List values = rowData.values.toList(growable: true);
+
+        // Add the key as last params
         values.add(syncData.rowguid);
+
         var sql = """UPDATE ${syncData.tablename} 
               SET
               ${rowData.keys.toList().join(" = ?,")} = ? 
@@ -389,6 +435,8 @@ class SyncRepository {
           rowData[field] = base64Encode(rowData[field] as Uint8List);
         }
       }
+      // Remove null values to spare some space
+      rowData.removeWhere((key, value) => value == null);
       // If some columns should be encrypted go ahead...
       if (encryptedFields.isNotEmpty) {
         //debugPrint("PROCEDI A ENCRYPT");
@@ -494,5 +542,48 @@ class SyncRepository {
     await SQLiteWrapper().execute(
         "DELETE FROM sync_details;DELETE FROM sync_encryption;",
         dbName: dbName);
+  }
+
+  /// Get the current SyncDetails  or null if sync is not yet configured
+  Future<SyncDetails?> getSyncDetails({dbName = defaultDBName}) async {
+    return await SQLiteWrapper().query("SELECT * FROM sync_details",
+        singleResult: true,
+        params: [],
+        fromMap: SyncDetails.fromDB,
+        dbName: dbName);
+  }
+
+  /// Return the list of all columns of a table
+  Future<List<String>> _getAllTablesColumns(String table,
+      {dbName = defaultDBName}) async {
+    const sql = """SELECT p.name as columnName
+                    FROM sqlite_master m
+                    left outer join pragma_table_info((m.name)) p
+                        on m.name <> p.name
+                    WHERE m.name=?
+                    order by columnName""";
+    final List<String> results = List.from(
+        await SQLiteWrapper().query(sql, params: [table], dbName: dbName));
+    return results;
+  }
+
+  /// Set to null missing fields present in the table but absent from the json
+  /// object, because they are non sent to save space on the remote server and
+  /// during connection
+  Future<void> _addNullFields(
+      String table, String keyField, Map<String, dynamic> rowData) async {
+    // Get all columns
+    List<String> columns = await _getAllTablesColumns(table);
+    List<String> keys = rowData.keys.toList();
+    // Remove columns already settable
+    columns.removeWhere(
+        (element) => keys.contains(element) || element == keyField);
+    // Add to rowData with value null the remaining columns
+
+    final Map<String, dynamic> nullFields = {};
+    for (String key in columns) {
+      nullFields[key] = null;
+    }
+    rowData.addAll(nullFields);
   }
 }
