@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
@@ -37,31 +38,13 @@ class HttpHelper {
     );
   }
 
-  /// Resituisce una MAP dal JSON scaricato o null in caso di errore
+  /// Return a MAP from the downloaded JSON or throws an Exception
+  ///
   static Future<dynamic> call(String url, Map<String, String?>? params,
       {String? method,
       Object? body,
       Map<String, String> additionalHeaders = const {}}) async {
     try {
-      /*
-      final bool isHTTPS = url.contains("https");
-      if (isHTTPS) {
-        url = url.substring(8);
-      } else {
-        url = url.substring(7);
-      }
-      int idx = url.indexOf("/");
-      if (idx < 0) {
-        idx = url.length;
-      }
-      // Controlla il proxy di sistema
-      //client.findProxy = () => "http://localhost:9090";
-
-      //ATTENZIONE CHE VA IMPOSTATO A HTTPS IN PRODUZIONE
-      var uri = isHTTPS
-          ? Uri.https(url.substring(0, idx), url.substring(idx), params)
-          : Uri.http(url.substring(0, idx), url.substring(idx), params);
-  */
       initAdapter();
 
       Map<String, String> headers = HashMap();
@@ -83,7 +66,7 @@ class HttpHelper {
         // If the server did return a 200 OK response,
         // then parse the JSON.
         try {
-          print(response.data);
+          //print(response.data);
           // Se non va provare con Options(responseType: ResponseType.bytes)
           return response.data; //  utf8.decode(response.data.toString()));
         } catch (e) {
@@ -92,17 +75,17 @@ class HttpHelper {
         }
       }
     } on DioError catch (e) {
-      if (e.response == null) {
+      if (e is SocketException || e.response == null) {
         throw SyncException(e.toString(),
             type: SyncExceptionType.connectionException);
       }
-      debugPrint(e.toString());
+      //debugPrint(e.toString());
       final response = e.response;
       if (response?.statusCode == 404) {
-        print("404 Not Found: $url");
-        throw Exception("404 Not found");
+        //print("404 Not Found: $url");
+        throw Exception("404 Not found - $url");
       } else if (response?.statusCode == 403) {
-        throw ExpiredTokenException();
+        throw UnauthorizedException();
       } else {
         // If the server did not return a 200 OK response,
         // then throw an exception.
@@ -145,7 +128,7 @@ class HttpHelper {
   }
 }
 
-class ExpiredTokenException implements Exception {}
+// class ExpiredTokenException implements Exception {}
 
 class ConnectionRefusedException implements Exception {}
 

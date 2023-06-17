@@ -127,7 +127,8 @@ class DatabaseHelper {
           password: "test",
           dbName: dbName1,
           secretKey: "",
-          deviceInfo: "MACOS");
+          deviceInfo: "MACOS",
+          language: "en");
       await syncRepository.register(
           name: "Test 2",
           newRegistration: false,
@@ -135,7 +136,8 @@ class DatabaseHelper {
           password: "test",
           dbName: dbName2,
           secretKey: "",
-          deviceInfo: "MACOS");
+          deviceInfo: "MACOS",
+          language: "it");
     }
     await syncRepository.sync(dbName: dbName1);
     await syncRepository.sync(dbName: dbName2);

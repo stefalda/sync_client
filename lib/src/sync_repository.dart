@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:sqlite_wrapper/sqlite_wrapper.dart';
 import 'package:sync_client/src/api/models/client_changes.dart';
+import 'package:sync_client/src/api/models/password_chage.dart';
 import 'package:sync_client/src/api/models/sync_data.dart';
 import 'package:sync_client/src/api/models/sync_details.dart'
     as api_sync_details;
@@ -25,23 +26,18 @@ class SyncRepository {
       required this.realm}) {
     authenticationHelper = AuthenticationHelper(
         dbName: defaultDBName, serverUrl: serverUrl, realm: realm);
-    //  createKey();
   }
-/*
-  createKey() async {
-    String secretKey = await sqliteWrapperSync.generateSecretKey();
-    await sqliteWrapperSync.setSecretKey(secretKey);
-  }
-*/
-  //Methods
-  /// Effettua la chiamata per registrare e in caso di successo memorizza le credenziali
-  // Solleva eccezione se qualcosa non va...
+
+  /// Register the User and the Client
+  /// (only the Client if newRegistration is false)
+  /// and store the credentials in the DB
   Future<void> register(
       {required String name,
       required String email,
       required String password,
       required String deviceInfo,
       required bool newRegistration,
+      required String language,
       required String
           secretKey, // If "" the key will be generated automatically
       dbName = defaultDBName}) async {
@@ -59,6 +55,8 @@ class SyncRepository {
     userRegistration.clientId = sqliteWrapperSync.newUUID();
     userRegistration.clientDescription = deviceInfo;
     userRegistration.newRegistration = newRegistration;
+    userRegistration.language = language;
+
     final json = jsonEncode(userRegistration.toMap());
     try {
       // Call the server
@@ -106,30 +104,8 @@ class SyncRepository {
     debugPrint("Ready for first sync");
   }
 
-  _authenticatedCall(String url, Map<String, String?>? params,
-      {String? method = "GET", Object? body, lastCall = false}) async {
-    final token = await authenticationHelper.getToken();
-    try {
-      return await HttpHelper.call(url, params,
-          body: body,
-          method: method,
-          additionalHeaders:
-              HttpHelper.bearerAuthenticationHeader(token: token!));
-    } on ExpiredTokenException {
-      if (lastCall) rethrow;
-      try {
-        await authenticationHelper.forceRefreshToken();
-      } catch (ex) {
-        // The refreshToken didn't work
-        throw UnauthorizedException();
-      }
-      return await _authenticatedCall(url, params,
-          method: method, body: body, lastCall: true);
-    } catch (ex) {
-      rethrow;
-    }
-  }
-
+  /// Unregister the client, optionally deleting ALL the data
+  /// related to this user if the deleteRemoteData is set to true
   Future<void> unregister(
       {required String email,
       required String password,
@@ -144,7 +120,8 @@ class SyncRepository {
     userRegistration.deleteRemoteData = deleteRemoteData;
     final json = jsonEncode(userRegistration.toMap());
     // dynamic result =
-    await _authenticatedCall("$serverUrl/unregister/$realm", {},
+    await authenticationHelper.authenticatedCall(
+        "$serverUrl/unregister/$realm", {},
         body: json, method: "POST");
     await resetDB();
   }
@@ -160,7 +137,12 @@ class SyncRepository {
         .execute("DELETE FROM sync_encryption", dbName: dbName);
   }
 
-  /// Effettua la sincronizzazione
+  ///
+  /// Sync the data by performing two API calls
+  ///
+  ///   PULL - to get all the information from the server deciding if some data on the client are outdated
+  ///   PUSH - to send all the (valid) changes to the server
+  ///
   Future<void> sync({dbName = defaultDBName}) async {
     try {
       // Ottieni il clientid
@@ -222,6 +204,67 @@ class SyncRepository {
     }
   }
 
+  /// Start a forgotten password request
+  ///   the server sends a mail to the email address
+  ///   with a PIN that must be used set the new password
+  ///   using the changePassword method
+  Future<void> forgottenPassword({required String email}) async {
+    await HttpHelper.call("$serverUrl/password/$realm/forgotten", {},
+        body: jsonEncode({"email": email}), method: "POST");
+  }
+
+  /// Change the password passing the PIN retrieved from the email received
+  Future<void> changePassword(
+      {required String email,
+      required String password,
+      required String pin,
+      dbName = defaultDBName}) async {
+    final PasswordChange passwordChange =
+        PasswordChange(email: email, password: password, pin: pin);
+    final json = jsonEncode(passwordChange.toMap());
+    try {
+      await HttpHelper.call("$serverUrl/password/$realm/change", {},
+          body: json, method: "POST");
+      // Update the password in the db
+      const sqlUpdate = "UPDATE sync_details SET userpassword = ?";
+      await SQLiteWrapper()
+          .execute(sqlUpdate, params: [password], dbName: dbName);
+    } on UnauthorizedException catch (ex) {
+      throw SyncException(ex.toString(),
+          type: SyncExceptionType.wrongOrExpiredPin);
+    } on CustomHttpException catch (ex) {
+      // 403 means that the PIN is
+      if (ex.statusCode == 403) {
+        throw SyncException(ex.message,
+            type: SyncExceptionType.wrongOrExpiredPin);
+      }
+    }
+  }
+
+  /// Verifica se è configurata la sincronizzazione
+  Future<bool> isConfigured({dbName = defaultDBName}) async {
+    const sql = "SELECT COUNT(*) FROM sync_details";
+    return (await sqliteWrapperSync.query(sql,
+            singleResult: true, dbName: dbName)) >
+        0;
+  }
+
+  /// Reset syncDetails usually when both tokens are invalid
+  Future<void> deleteSyncDetails({dbName = defaultDBName}) async {
+    await SQLiteWrapper().execute(
+        "DELETE FROM sync_details;DELETE FROM sync_encryption;",
+        dbName: dbName);
+  }
+
+  /// Get the current SyncDetails  or null if sync is not yet configured
+  Future<SyncDetails?> getSyncDetails({dbName = defaultDBName}) async {
+    return await SQLiteWrapper().query("SELECT * FROM sync_details",
+        singleResult: true,
+        params: [],
+        fromMap: SyncDetails.fromDB,
+        dbName: dbName);
+  }
+
   /// Effettua la chiamata al pull
   Future<List<SyncData>> _pull(
       String clientId, int lastSync, List<SyncData> syncDataList,
@@ -233,7 +276,8 @@ class SyncRepository {
       ..changes = syncDataList;
 
     final json = jsonEncode(clientChanges.toMap(skipRowData: true));
-    dynamic result = await _authenticatedCall("$serverUrl/pull/$realm", {},
+    dynamic result = await authenticationHelper.authenticatedCall(
+        "$serverUrl/pull/$realm", {},
         body: json, method: "POST");
 
     api_sync_details.SyncDetails syncDetails =
@@ -261,7 +305,8 @@ class SyncRepository {
 
     final json = jsonEncode(clientChanges.toMap(skipRowData: false));
     _debugPrint("PUSH ${syncDataList.length} rows");
-    dynamic result = await _authenticatedCall("$serverUrl/push/$realm", {},
+    dynamic result = await authenticationHelper.authenticatedCall(
+        "$serverUrl/push/$realm", {},
         body: json, method: "POST");
     SyncInfo syncInfo = SyncInfo.fromJson(result);
 
@@ -481,26 +526,6 @@ class SyncRepository {
     return row;
   }
 
-  /// Ottiene alcune informazioni base sul device corrente
-  /*
-  Future<String> _getDeviceInfo() async {
-    if (kIsWeb) {
-      return "WEB BROWSER";
-    }
-    DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-    if (Platform.isAndroid) {
-      AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
-      return "${androidInfo.brand} ${androidInfo.model} - Android ${androidInfo.version.release}";
-    }
-    if (Platform.isIOS) {
-      IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
-      return "${iosInfo.utsname.machine} - ${iosInfo.systemName} ${iosInfo.systemVersion}";
-    }
-
-    return "";
-  }
-  */
-
   /// Create the insert LOGs for all the rows already in the DB
   Future<void> _logPreviouslyInsertedData({dbName = defaultDBName}) async {
     //Map<String, TableInfo> tableInfos = _getTableInfos();
@@ -527,30 +552,6 @@ class SyncRepository {
     if (debug) {
       print(message);
     }
-  }
-
-  /// Verifica se è configurata la sincronizzazione
-  Future<bool> isConfigured({dbName = defaultDBName}) async {
-    const sql = "SELECT COUNT(*) FROM sync_details";
-    return (await sqliteWrapperSync.query(sql,
-            singleResult: true, dbName: dbName)) >
-        0;
-  }
-
-  /// Reset syncDetails usually when both tokens are invalid
-  Future<void> deleteSyncDetails({dbName = defaultDBName}) async {
-    await SQLiteWrapper().execute(
-        "DELETE FROM sync_details;DELETE FROM sync_encryption;",
-        dbName: dbName);
-  }
-
-  /// Get the current SyncDetails  or null if sync is not yet configured
-  Future<SyncDetails?> getSyncDetails({dbName = defaultDBName}) async {
-    return await SQLiteWrapper().query("SELECT * FROM sync_details",
-        singleResult: true,
-        params: [],
-        fromMap: SyncDetails.fromDB,
-        dbName: dbName);
   }
 
   /// Return the list of all columns of a table

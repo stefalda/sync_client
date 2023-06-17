@@ -14,8 +14,39 @@ class AuthenticationHelper {
   AuthenticationHelper(
       {required this.dbName, required this.serverUrl, required this.realm});
 
+  /// Execute an authenticated call passing the token
+  /// if the token is expired tries to renew it or
+  /// if everything fails throws a UnauthorizedException
+  Future<dynamic> authenticatedCall(String url, Map<String, String?>? params,
+      {String? method = "GET", Object? body, lastCall = false}) async {
+    final token = await _getToken();
+    try {
+      return await HttpHelper.call(url, params,
+          body: body,
+          method: method,
+          additionalHeaders:
+              HttpHelper.bearerAuthenticationHeader(token: token!));
+    } on UnauthorizedException {
+      if (lastCall) {
+        throw SyncException("Unauthorized exception",
+            type: SyncExceptionType.reloginNeeded);
+      }
+      try {
+        await _forceRefreshToken();
+      } catch (ex) {
+        // The refreshToken didn't work
+        throw throw SyncException("Unauthorized exception",
+            type: SyncExceptionType.reloginNeeded);
+      }
+      return await authenticatedCall(url, params,
+          method: method, body: body, lastCall: true);
+    } catch (ex) {
+      rethrow;
+    }
+  }
+
   /// Return a token to be used in authenticated calls
-  Future<String?> getToken() async {
+  Future<String?> _getToken() async {
     SyncDetails detail = await _getTokenFromDB();
     if (detail.accessToken == null) {
       detail = await _registerForAToken(detail);
@@ -27,7 +58,7 @@ class AuthenticationHelper {
   }
 
   /// Force a refresh token if the server as asked for it
-  Future<void> forceRefreshToken() async {
+  Future<void> _forceRefreshToken() async {
     SyncDetails detail = await _getTokenFromDB();
     await _refreshToken(detail);
   }
@@ -43,7 +74,7 @@ class AuthenticationHelper {
     // Authorization: Basic username:password
     Map<String, dynamic> tokenData = await HttpHelper.call(
         "$serverUrl/login/$realm", {},
-        body: jsonEncode({"clientid": syncDetails.clientid}),
+        body: jsonEncode({"clientId": syncDetails.clientid}),
         additionalHeaders: HttpHelper.simpleAuthenticationHeader(
             username: syncDetails.useremail,
             password: syncDetails.userpassword),
@@ -59,7 +90,7 @@ class AuthenticationHelper {
           body: jsonEncode({"refreshToken": syncDetails.refreshToken}),
           method: 'POST');
       return await _updateSyncDetailsFromTokenData(syncDetails, tokenData);
-    } on ExpiredTokenException {
+    } on UnauthorizedException {
       // Relogin using username and password
       debugPrint("Something went wrong with refreshToken try to relogin");
       return await _registerForAToken(syncDetails);

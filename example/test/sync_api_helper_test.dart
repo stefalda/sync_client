@@ -28,7 +28,8 @@ void main() async {
         deviceInfo: "TEST OS",
         dbName: mainDBName,
         secretKey: "",
-        newRegistration: true);
+        newRegistration: true,
+        language: "en");
     await syncRepository.register(
         name: "Test 2",
         email: "test@test.com",
@@ -36,7 +37,8 @@ void main() async {
         deviceInfo: "TEST OS",
         dbName: secondaryDBName,
         secretKey: "",
-        newRegistration: false);
+        newRegistration: false,
+        language: "en");
   });
 
   test("Perform a sync", () async {

@@ -6,6 +6,7 @@ class UserRegistration {
   String? clientDescription;
   bool newRegistration = false;
   bool deleteRemoteData = false;
+  String? language;
 
   Map<String, dynamic> toMap() {
     return {
@@ -15,7 +16,8 @@ class UserRegistration {
       'clientId': clientId,
       'clientDescription': clientDescription,
       'newRegistration': newRegistration,
-      'deleteRemoteData': deleteRemoteData
+      'deleteRemoteData': deleteRemoteData,
+      'language': language
     };
   }
 }
