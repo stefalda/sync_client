@@ -32,7 +32,7 @@ class SyncRepository {
   /// (only the Client if newRegistration is false)
   /// and store the credentials in the DB
   Future<void> register(
-      {required String name,
+      {required String? name,
       required String email,
       required String password,
       required String deviceInfo,
@@ -64,7 +64,7 @@ class SyncRepository {
           body: json, method: "POST");
 
       // Save the name
-      if (!newRegistration && name.isEmpty) {
+      if (!newRegistration && (name ?? "").isEmpty) {
         name = result['user']['name'];
       }
     } on CustomHttpException catch (e) {
@@ -97,7 +97,7 @@ class SyncRepository {
     }
     await sqliteWrapperSync.setSecretKey(secretKey);
 
-    await _configureSync(name, email, password, userRegistration.clientId!,
+    await _configureSync(name!, email, password, userRegistration.clientId!,
         dbName: dbName);
     await _logPreviouslyInsertedData(dbName: dbName);
     //syncConfigured = SyncEnabled.enabled;
