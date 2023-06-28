@@ -167,12 +167,12 @@ class SyncRepository {
       }
 
       // Effettua il pull
-      _debugPrint("Effettua la chiamata PULL");
+      _debugPrint("PULL first");
       final clientDataList =
           await _pull(clientId, lastSync, syncDataList, dbName: dbName);
 
       // Effettua il push dei dati superstiti
-      _debugPrint("Effettua la chiamata PUSH");
+      _debugPrint("Time to PUSH...");
       final SyncInfo syncInfo = await _push(clientId, lastSync, clientDataList);
 
       /// Aggiorna le copertine
@@ -180,11 +180,11 @@ class SyncRepository {
 
       if (syncInfo.lastSync != null) {
         // Cancella le righe in syncdata
-        _debugPrint("Cancella le righe da sync_data");
+        _debugPrint("Delete rows from sync_data");
         await SQLiteWrapper().execute("DELETE FROM sync_data", dbName: dbName);
 
         // Aggiorna la data di ultimo aggiornamento
-        _debugPrint("Aggiorna la data di ultimo aggiornamento");
+        _debugPrint("Update last update date");
         await SQLiteWrapper().execute("UPDATE sync_details SET lastSync = ?",
             params: [syncInfo.lastSync!.millisecondsSinceEpoch],
             dbName: dbName);
@@ -276,18 +276,20 @@ class SyncRepository {
       ..changes = syncDataList;
 
     final json = jsonEncode(clientChanges.toMap(skipRowData: true));
+    // This call unexptectly returns even if it's awaited
     dynamic result = await authenticationHelper.authenticatedCall(
         "$serverUrl/pull/$realm", {},
         body: json, method: "POST");
 
     api_sync_details.SyncDetails syncDetails =
         api_sync_details.SyncDetails.fromJson(result);
+
     // Adesso rimuove da syncDataList le chiavi indicate dal server
     for (var rowguid in syncDetails.outdatedRowsGuid!) {
       syncDataList.removeWhere((element) => element.rowguid == rowguid);
     }
     _debugPrint(
-        "Risultati pull: da eliminare dall'invio ${syncDetails.outdatedRowsGuid!.length} - da aggiornare dal server ${syncDetails.data.length}");
+        "Pull Results: to be deleted from push ${syncDetails.outdatedRowsGuid!.length} - to update from the server ${syncDetails.data.length}");
 
     // Inserisce dentro il DB le nuove righe inviate dal DB
     await _importServerData(syncDetails.data, dbName: dbName);
@@ -347,7 +349,7 @@ class SyncRepository {
         // PROVA SEMPRE PRIMA UN UPDATE, IN CASO DI FALLIMENTO PROCEDI CON UNA INSERT
         // RIMUOVI LA ROWGUID dai campi in modo da essere sicuro della posizione
         if (syncData.rowData == null) {
-          _debugPrint("MANCANO I DATI!");
+          _debugPrint("No data...");
           break;
         }
         final rowData = Map<String, dynamic>.from(syncData.rowData!);

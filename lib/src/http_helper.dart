@@ -56,8 +56,9 @@ class HttpHelper {
       switch (method) {
         case "POST":
           final data = jsonDecode(body as String);
-          response = await dio.post(url,
-              data: data, options: Options(headers: headers));
+          final options = Options(headers: headers);
+          // This call make the first future to be exited, don't know why...
+          response = await dio.post(url, data: data, options: options);
           break;
         default:
           response = await dio.get(url, options: Options(headers: headers));

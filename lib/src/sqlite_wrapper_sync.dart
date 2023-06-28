@@ -176,6 +176,16 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
         dbName: dbName);
   }
 
+  /// Get the current SyncDetails  or null if sync is not yet configured
+  Future<bool> shouldSync({dbName = defaultDBName}) async {
+    return await super.query("SELECT COUNT(*) FROM ${SyncData.tableName}",
+            singleResult: true,
+            params: [],
+            fromMap: SyncDetails.fromDB,
+            dbName: dbName) >
+        0;
+  }
+
   Future<void> _deleteSyncDataRow(SyncData existingLogRow, dbName) async {
     await super.delete(existingLogRow.toMap(), SyncData.tableName,
         keys: ["id"], dbName: dbName);
