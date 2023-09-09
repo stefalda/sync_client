@@ -23,7 +23,7 @@ class HttpHelper {
 
   static void initAdapter() {
     dio.httpClientAdapter = IOHttpClientAdapter(
-      onHttpClientCreate: (client) {
+      createHttpClient: () {
         // Config the client.
         /*client.findProxy = (uri) {
           // Forward all request to proxy "localhost:8888".
@@ -33,7 +33,7 @@ class HttpHelper {
         };*/
         // You can also create a new HttpClient for Dio instead of returning,
         // but a client must being returned here.
-        return client;
+        return HttpClient();
       },
     );
   }

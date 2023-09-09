@@ -1,12 +1,12 @@
 # This is a generated file; do not edit or check into version control.
-device_info_plus=C:\\Users\\stefano.falda\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\device_info_plus-4.1.3\\
-device_info_plus_linux=C:\\Users\\stefano.falda\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\device_info_plus_linux-3.0.0\\
-device_info_plus_macos=C:\\Users\\stefano.falda\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\device_info_plus_macos-3.0.0\\
-device_info_plus_web=C:\\Users\\stefano.falda\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\device_info_plus_web-3.0.0\\
-device_info_plus_windows=C:\\Users\\stefano.falda\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\device_info_plus_windows-4.1.0\\
-path_provider=C:\\Users\\stefano.falda\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\path_provider-2.0.15\\
-path_provider_android=C:\\Users\\stefano.falda\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\path_provider_android-2.0.27\\
-path_provider_foundation=C:\\Users\\stefano.falda\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\path_provider_foundation-2.2.3\\
-path_provider_linux=C:\\Users\\stefano.falda\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\path_provider_linux-2.1.11\\
-path_provider_windows=C:\\Users\\stefano.falda\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\path_provider_windows-2.1.7\\
-sqlite3_flutter_libs=C:\\Users\\stefano.falda\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\sqlite3_flutter_libs-0.5.15\\
+device_info_plus=/Users/ste/.pub-cache/hosted/pub.dev/device_info_plus-4.1.3/
+device_info_plus_linux=/Users/ste/.pub-cache/hosted/pub.dev/device_info_plus_linux-3.0.0/
+device_info_plus_macos=/Users/ste/.pub-cache/hosted/pub.dev/device_info_plus_macos-3.0.0/
+device_info_plus_web=/Users/ste/.pub-cache/hosted/pub.dev/device_info_plus_web-3.0.0/
+device_info_plus_windows=/Users/ste/.pub-cache/hosted/pub.dev/device_info_plus_windows-4.1.0/
+path_provider=/Users/ste/.pub-cache/hosted/pub.dev/path_provider-2.1.1/
+path_provider_android=/Users/ste/.pub-cache/hosted/pub.dev/path_provider_android-2.2.0/
+path_provider_foundation=/Users/ste/.pub-cache/hosted/pub.dev/path_provider_foundation-2.3.1/
+path_provider_linux=/Users/ste/.pub-cache/hosted/pub.dev/path_provider_linux-2.2.1/
+path_provider_windows=/Users/ste/.pub-cache/hosted/pub.dev/path_provider_windows-2.2.1/
+sqlite3_flutter_libs=/Users/ste/.pub-cache/hosted/pub.dev/sqlite3_flutter_libs-0.5.16/

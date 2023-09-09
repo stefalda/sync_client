@@ -2,8 +2,9 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:encrypt/encrypt.dart';
+import 'package:uuid/data.dart';
+import 'package:uuid/rng.dart';
 import 'package:uuid/uuid.dart';
-import 'package:uuid/uuid_util.dart';
 
 /// Allow to encrypt/decrypt data before
 /// encodingKey MUST be set before using the class
@@ -36,7 +37,9 @@ class EncryptHelper {
 
   /// Returns a new AES key to be used to encode/decode
   static String generateSecretKey() {
-    return Uuid(options: {'rng': UuidUtil.cryptoRNG}).v4().replaceAll('-', '');
+    final uuid = Uuid();
+    final String v4Crypto = uuid.v4(config: V4Options(null, CryptoRNG()));
+    return v4Crypto.replaceAll('-', '');
   }
 
   /// Simplify the creation of a secret key by generating one starting from a PIN
