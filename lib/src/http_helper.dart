@@ -75,7 +75,7 @@ class HttpHelper {
           return null;
         }
       }
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       if (e is SocketException || e.response == null) {
         throw SyncException(e.toString(),
             type: SyncExceptionType.connectionException);

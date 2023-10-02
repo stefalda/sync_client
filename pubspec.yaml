@@ -13,13 +13,13 @@ dependencies:
   #  path: ./../../../open-source/sqlite_wrapper
   path: ^1.8.3 # Required to compute path
   #sqlite3_flutter_libs: ^0.5.7 # Required by Android
-  uuid: ^4.0.0
+  uuid: ^4.1.0
   crypt: ^4.3.0
   crypto: ^3.0.3
-  encrypt: ^5.0.1
-  dio: ^5.3.2
+  encrypt: ^5.0.3
+  dio: ^5.3.3
 
 dev_dependencies:
   flutter_lints: ^2.0.3
   lints: ^2.1.1
-  test: ^1.24.6
+  test: ^1.24.7
