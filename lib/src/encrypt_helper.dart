@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:crypto/crypto.dart';
+import 'package:crypto/crypto.dart'; // Used to encode pin and geneerate a secret key
 import 'package:encrypt/encrypt.dart';
 import 'package:uuid/data.dart';
 import 'package:uuid/rng.dart';
@@ -15,8 +15,11 @@ import 'package:uuid/uuid.dart';
 class EncryptHelper {
   static Key? _key;
   static Encrypter? _encrypter;
-  static final iv = IV.fromLength(16);
-
+  // Since version 5.0.2 of ecrypted
+  // the behaviour of this has changed and the value became random
+  // so it breaks existing coding
+  //static final iv = IV.fromLength(16);
+  static final iv = IV.allZerosOfLength(16);
   static String? secretKey;
 
   /// Encrypt a value by using the secret key stored in the DB
@@ -64,6 +67,7 @@ class EncryptHelper {
   static Encrypter _getEncrypter() {
     if (_encrypter != null) return _encrypter!;
     _encrypter = Encrypter(AES(_getKey()));
+    //_encrypter = Encrypter(AES(_getKey(), mode: AESMode.cbc, padding: "PKCS7"));
     return _encrypter!;
   }
 }
