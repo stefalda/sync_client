@@ -1,7 +1,8 @@
 name: sync_client
 description: A library to sync based on sqlite_wrapper
-version: 1.0.4
-# homepage: https://www.example.com
+version: 1.1.0
+homepage: https://github.com/stefalda/sync_client
+issue_tracker: https://github.com/stefalda/sync_client/issues
 
 environment:
   sdk: ">=2.17.0 <4.0.0"
@@ -9,12 +10,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  sqlite_wrapper: # ^0.2.0-dev-1
-    path: ./../../../open-source/sqlite_wrapper
-  path: ^1.8.3 # Required to compute path
+  sqlite_wrapper: ^0.2.1
+  #  path: ./../../../open-source/sqlite_wrapper
   sqlite3_flutter_libs: ^0.5.24 # Required by Android
   uuid: ^4.1.0
-  crypt: ^4.3.0
   crypto: ^3.0.3
   encrypt: ^5.0.3
   dio: ^5.3.3
