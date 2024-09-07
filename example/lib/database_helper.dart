@@ -6,9 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqlite_wrapper_sample/models.dart';
 import 'package:sync_client/sync_client.dart';
 
-const mainDBName = "todoDatabase";
-const secondaryDBName = "todoDatabase2";
-
+/// Singleton class to operate with the database and the sync server
 class DatabaseHelper {
   static final DatabaseHelper _singleton = DatabaseHelper._internal();
   factory DatabaseHelper() {
@@ -17,10 +15,13 @@ class DatabaseHelper {
 
   DatabaseHelper._internal();
 
+  /// Define the tables structure
   SQLiteWrapperSync sqLiteWrapperSync = SQLiteWrapperSync(
       tableInfos: {"todos": TableInfo(keyField: 'rowguid', binaryFields: [])});
 
-  initDB({inMemory = false, test = false, dbName = mainDBName}) async {
+  /// Init the Database
+  initDB({inMemory = false, test = false, required String dbName}) async {
+    debugPrint("initDB $dbName");
     String dbPath = inMemoryDatabasePath;
     if (!inMemory) {
       if (test) {
@@ -55,12 +56,13 @@ class DatabaseHelper {
   }
 
   /// Return a list of all todos
-  Stream getTodos({dbName = mainDBName}) {
+  Stream getTodos({required String dbName}) {
     return sqLiteWrapperSync.watch("SELECT * FROM todos order by rowguid",
         tables: [Todo.table], fromMap: Todo.fromMap, dbName: dbName);
   }
 
-  Stream<Map<String, dynamic>> getTodoCount({dbName = mainDBName}) {
+  /// Create a stream to update the todo count
+  Stream<Map<String, dynamic>> getTodoCount({required String dbName}) {
     return Stream.castFrom(sqLiteWrapperSync.watch("""
         SELECT SUM(done) as done, sum(todo) as todo FROM (
         SELECT COUNT(*) as done,  0 as todo FROM todos where done = 1
@@ -71,7 +73,7 @@ class DatabaseHelper {
   }
 
   /// Add the new to-do Item
-  Future<String> addNewTodo(String title, {dbName = mainDBName}) async {
+  Future<String> addNewTodo(String title, {required String dbName}) async {
     final rowguid = sqLiteWrapperSync.newUUID();
     await sqLiteWrapperSync.insert(
         Todo(rowguid: rowguid, title: title).toMap(), Todo.table,
@@ -79,23 +81,27 @@ class DatabaseHelper {
     return rowguid;
   }
 
-  Future<void> toggleDone(Todo todo, {dbName = mainDBName}) async {
+  /// Toggle a todo item - Done/To Do
+  Future<void> toggleDone(Todo todo, {required String dbName}) async {
     todo.done = !todo.done;
     await sqLiteWrapperSync.update(todo.toMap(), "todos",
         keys: ["rowguid"], dbName: dbName);
   }
 
-  Future<void> deleteTodo(Todo todo, {dbName = mainDBName}) async {
+  /// Remove the todo item
+  Future<void> deleteTodo(Todo todo, {required String dbName}) async {
     await sqLiteWrapperSync.delete(todo.toMap(), "todos",
         keys: ["rowguid"], dbName: dbName);
   }
 
-  Future<void> saveTodo(Todo todo, {dbName = mainDBName}) async {
+  /// Save the new todo
+  Future<void> saveTodo(Todo todo, {required String dbName}) async {
     await sqLiteWrapperSync.save(todo.toMap(), "todos",
         keys: ["rowguid"], dbName: dbName);
   }
 
-  Future<Todo?> getTodo(String rowguid, {dbName = mainDBName}) async {
+  /// Get a specific todo by id
+  Future<Todo?> getTodo(String rowguid, {required String dbName}) async {
     return await sqLiteWrapperSync.query(
         "SELECT * FROM ${Todo.table} WHERE rowguid=?",
         params: [rowguid],
@@ -104,7 +110,8 @@ class DatabaseHelper {
         dbName: dbName);
   }
 
-  Future<Todo?> getTodoByTitle(String title, {dbName = mainDBName}) async {
+  /// Get a specific todo by title
+  Future<Todo?> getTodoByTitle(String title, {required String dbName}) async {
     return await sqLiteWrapperSync.query(
         "SELECT * FROM ${Todo.table} WHERE title=?",
         params: [title],
@@ -113,99 +120,65 @@ class DatabaseHelper {
         dbName: dbName);
   }
 
-  /// Sync dbName1 and then dbName2
-  Future<void> sync(String dbName1, String dbName2) async {
-    final syncRepository = SyncRepository(
-        serverUrl: "192.168.4.3:8760",
+  /// Get the sync repository configuration (URL and REALM)
+  dynamic _getSyncRepository() {
+    return SyncRepository(
+        serverUrl: "http://localhost:3000",
         sqliteWrapperSync: sqLiteWrapperSync,
         realm: "TODOS");
+  }
+
+  /// Register dbName1 and then dbName2
+  Future<void> register(String dbName1, String dbName2) async {
+    final syncRepository = _getSyncRepository();
     if (!await syncRepository.isConfigured(dbName: dbName1)) {
-      await syncRepository.register(
-          name: "Test 1",
-          email: "test@test.com",
-          newRegistration: true,
-          password: "test",
-          dbName: dbName1,
-          secretKey: "",
-          deviceInfo: "MACOS",
-          language: "en");
-      await syncRepository.register(
-          name: "Test 2",
-          newRegistration: false,
-          email: "test@test.com",
-          password: "test",
-          dbName: dbName2,
-          secretKey: "",
-          deviceInfo: "MACOS",
-          language: "it");
+      try {
+        await syncRepository.register(
+            name: "Test 1",
+            email: "test@test.com",
+            newRegistration: true,
+            password: "test",
+            dbName: dbName1,
+            secretKey: "",
+            deviceInfo: "{\"name\":\"MACOS1\"}",
+            language: "en");
+      } on SyncException catch (ex) {
+        if (ex.type == SyncExceptionType.registerExceptionAlreadyRegistered) {
+          await syncRepository.register(
+              name: "Test 1",
+              email: "test@test.com",
+              newRegistration: false,
+              password: "test",
+              dbName: dbName1,
+              secretKey: "",
+              deviceInfo: "{\"name\":\"MACOS1\"}",
+              language: "en");
+        }
+      }
+      if (!await syncRepository.isConfigured(dbName: dbName2)) {
+        // Register second client
+        await syncRepository.register(
+            name: "Test 1",
+            email: "test@test.com",
+            newRegistration: false,
+            password: "test",
+            dbName: dbName2,
+            secretKey: "",
+            deviceInfo: "{\"name\":\"MACOS2\"}",
+            language: "en");
+      }
+    } else {
+      debugPrint("Already configured...");
     }
+  }
+
+  /// Sync first the DB1 then DB2
+  /// 2 pass might be required to a full sync
+  /// (because if the changes are in db2, the first time they're invisible to db1)
+  Future<void> sync(String dbName1, String dbName2) async {
+    debugPrint("Sync...");
+    final syncRepository = _getSyncRepository();
     await syncRepository.sync(dbName: dbName1);
     await syncRepository.sync(dbName: dbName2);
   }
-
-/*
-  /// Return the tableInfos of the current DB
-  Map<String, TableInfo> _getTableInfos() {
-    final Map<String, TableInfo> tableInfos = {
-      "todos":
-          TableInfo(keyField: 'rowguid', binaryFields: [], externalKeys: [])
-    };
-    return tableInfos;
-    final Map<String, TableInfo> tableInfos = {
-      "books": TableInfo(keyField: "bookid", binaryFields: [], externalKeys: [
-        ExternalKey(
-            fieldName: "publisherid",
-            externalFieldTable: "publishers",
-            externalFieldKey: "publisherid"),
-        ExternalKey(
-            fieldName: "authorid",
-            externalFieldTable: "authors",
-            externalFieldKey: "authorid"),
-        ExternalKey(
-            fieldName: "categoryid",
-            externalFieldTable: "categories",
-            externalFieldKey: "categoryid"),
-        ExternalKey(
-            fieldName: "categoryid2",
-            externalFieldTable: "categories",
-            externalFieldKey: "categoryid"),
-        ExternalKey(
-            fieldName: "categoryid3",
-            externalFieldTable: "categories",
-            externalFieldKey: "categoryid"),
-        ExternalKey(
-            fieldName: "formatid",
-            externalFieldTable: "formats",
-            externalFieldKey: "formatid"),
-        ExternalKey(
-            fieldName: "origin",
-            externalFieldTable: "origins",
-            externalFieldKey: "originid"),
-        ExternalKey(
-            fieldName: "locationid",
-            externalFieldTable: "locations",
-            externalFieldKey: "locationid")
-      ]),
-      "authors": TableInfo(
-          keyField: "authorid", binaryFields: ["photo"], externalKeys: []),
-      "publishers": TableInfo(
-          keyField: "publisherid", binaryFields: [], externalKeys: []),
-      "covers": TableInfo(keyField: "coverid", binaryFields: [
-        "cover"
-      ], externalKeys: [
-        ExternalKey(
-            fieldName: "bookid",
-            externalFieldTable: "books",
-            externalFieldKey: "bookid")
-      ], booleanFields: [
-        "customCover"
-      ], aliasesFields: {
-        "cover": "big"
-      }),
-      "categories":
-          TableInfo(keyField: "categoryid", binaryFields: [], externalKeys: [])
-    };
-    return tableInfos;
-    
-  }*/
 }

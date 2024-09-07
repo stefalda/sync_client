@@ -24,8 +24,8 @@ class SyncRepository {
       {required this.sqliteWrapperSync,
       required this.serverUrl,
       required this.realm}) {
-    authenticationHelper = AuthenticationHelper(
-        dbName: defaultDBName, serverUrl: serverUrl, realm: realm);
+    authenticationHelper =
+        AuthenticationHelper(serverUrl: serverUrl, realm: realm);
   }
 
   /// Register the User and the Client
@@ -40,7 +40,7 @@ class SyncRepository {
       required String language,
       required String
           secretKey, // If "" the key will be generated automatically
-      dbName = defaultDBName}) async {
+      required String dbName}) async {
     const sql = "SELECT * FROM sync_details";
     final rows = await SQLiteWrapper().query(sql, dbName: dbName);
     if (rows.isNotEmpty) {
@@ -95,7 +95,7 @@ class SyncRepository {
       // tableInfo it will be never used
       secretKey = sqliteWrapperSync.generateSecretKey();
     }
-    await sqliteWrapperSync.setSecretKey(secretKey);
+    await sqliteWrapperSync.setSecretKey(secretKey, dbName: dbName);
 
     await _configureSync(name!, email, password, userRegistration.clientId!,
         dbName: dbName);
@@ -110,7 +110,7 @@ class SyncRepository {
       {required String email,
       required String password,
       required String clientId,
-      dbName = defaultDBName,
+      required String dbName,
       deleteRemoteData = false}) async {
     final UserRegistration userRegistration = UserRegistration();
     userRegistration.email = email;
@@ -122,12 +122,12 @@ class SyncRepository {
     // dynamic result =
     await authenticationHelper.authenticatedCall(
         "$serverUrl/unregister/$realm", {},
-        body: json, method: "POST");
-    await resetDB();
+        body: json, method: "POST", dbName: dbName);
+    await resetDB(dbName: dbName);
   }
 
   /// Reset the table data for account and sync data
-  Future<void> resetDB({dbName = defaultDBName}) async {
+  Future<void> resetDB({required String dbName}) async {
     // DELETE LOGGED DATA
     await SQLiteWrapper().execute("DELETE FROM sync_data", dbName: dbName);
     // DELETE SYNC DETAIL
@@ -143,7 +143,7 @@ class SyncRepository {
   ///   PULL - to get all the information from the server deciding if some data on the client are outdated
   ///   PUSH - to send all the (valid) changes to the server
   ///
-  Future<void> sync({dbName = defaultDBName}) async {
+  Future<void> sync({required String dbName}) async {
     try {
       // Ottieni il clientid
       var clientInfo = await _getSyncConfigDetails(dbName: dbName);
@@ -173,7 +173,8 @@ class SyncRepository {
 
       // Effettua il push dei dati superstiti
       _debugPrint("Time to PUSH...");
-      final SyncInfo syncInfo = await _push(clientId, lastSync, clientDataList);
+      final SyncInfo syncInfo =
+          await _push(clientId, lastSync, clientDataList, dbName: dbName);
 
       /// Aggiorna le copertine
       //  await _downloadCovers();
@@ -218,7 +219,7 @@ class SyncRepository {
       {required String email,
       required String password,
       required String pin,
-      dbName = defaultDBName}) async {
+      required String dbName}) async {
     final PasswordChange passwordChange =
         PasswordChange(email: email, password: password, pin: pin);
     final json = jsonEncode(passwordChange.toMap());
@@ -242,7 +243,7 @@ class SyncRepository {
   }
 
   /// Verifica se è configurata la sincronizzazione
-  Future<bool> isConfigured({dbName = defaultDBName}) async {
+  Future<bool> isConfigured({required String dbName}) async {
     const sql = "SELECT COUNT(*) FROM sync_details";
     return (await sqliteWrapperSync.query(sql,
             singleResult: true, dbName: dbName)) >
@@ -250,14 +251,14 @@ class SyncRepository {
   }
 
   /// Reset syncDetails usually when both tokens are invalid
-  Future<void> deleteSyncDetails({dbName = defaultDBName}) async {
+  Future<void> deleteSyncDetails({required String dbName}) async {
     await SQLiteWrapper().execute(
         "DELETE FROM sync_details;DELETE FROM sync_encryption;",
         dbName: dbName);
   }
 
   /// Get the current SyncDetails  or null if sync is not yet configured
-  Future<SyncDetails?> getSyncDetails({dbName = defaultDBName}) async {
+  Future<SyncDetails?> getSyncDetails({required String dbName}) async {
     return await SQLiteWrapper().query("SELECT * FROM sync_details",
         singleResult: true,
         params: [],
@@ -268,38 +269,44 @@ class SyncRepository {
   /// Effettua la chiamata al pull
   Future<List<SyncData>> _pull(
       String clientId, int lastSync, List<SyncData> syncDataList,
-      {dbName = defaultDBName}) async {
+      {required String dbName}) async {
     // i rowData non servono nella pull, rimuvili
-    final ClientChanges clientChanges = ClientChanges()
-      ..clientId = clientId
-      ..lastSync = lastSync
-      ..changes = syncDataList;
+    try {
+      final ClientChanges clientChanges = ClientChanges()
+        ..clientId = clientId
+        ..lastSync = lastSync
+        ..changes = syncDataList;
 
-    final json = jsonEncode(clientChanges.toMap(skipRowData: true));
-    // This call unexptectly returns even if it's awaited
-    dynamic result = await authenticationHelper.authenticatedCall(
-        "$serverUrl/pull/$realm", {},
-        body: json, method: "POST");
+      final json = jsonEncode(clientChanges.toMap(skipRowData: true));
+      // This call unexptectly returns even if it's awaited
+      dynamic result = await authenticationHelper.authenticatedCall(
+          "$serverUrl/pull/$realm", {},
+          body: json, method: "POST", dbName: dbName);
 
-    api_sync_details.SyncDetails syncDetails =
-        api_sync_details.SyncDetails.fromJson(result);
+      api_sync_details.SyncDetails syncDetails =
+          api_sync_details.SyncDetails.fromJson(result);
 
-    // Adesso rimuove da syncDataList le chiavi indicate dal server
-    for (var rowguid in syncDetails.outdatedRowsGuid!) {
-      syncDataList.removeWhere((element) => element.rowguid == rowguid);
+      // Adesso rimuove da syncDataList le chiavi indicate dal server
+      for (var rowguid in syncDetails.outdatedRowsGuid!) {
+        syncDataList.removeWhere((element) => element.rowguid == rowguid);
+      }
+      _debugPrint(
+          "Pull Results: to be deleted from push ${syncDetails.outdatedRowsGuid!.length} - to update from the server ${syncDetails.data.length}");
+
+      // Inserisce dentro il DB le nuove righe inviate dal DB
+      await _importServerData(syncDetails.data, dbName: dbName);
+      // Restituisce l'elenco dei syncData superstiti
+      return syncDataList;
+    } on Exception catch (e) {
+      debugPrint("Error during pull: ${e.toString()}");
+      rethrow;
     }
-    _debugPrint(
-        "Pull Results: to be deleted from push ${syncDetails.outdatedRowsGuid!.length} - to update from the server ${syncDetails.data.length}");
-
-    // Inserisce dentro il DB le nuove righe inviate dal DB
-    await _importServerData(syncDetails.data, dbName: dbName);
-    // Restituisce l'elenco dei syncData superstiti
-    return syncDataList;
   }
 
   /// Effettua la chiamata al push
   Future<SyncInfo> _push(
-      String clientId, int lastSync, List<SyncData> syncDataList) async {
+      String clientId, int lastSync, List<SyncData> syncDataList,
+      {required String dbName}) async {
     final ClientChanges clientChanges = ClientChanges()
       ..clientId = clientId
       ..lastSync = lastSync
@@ -309,7 +316,7 @@ class SyncRepository {
     _debugPrint("PUSH ${syncDataList.length} rows");
     dynamic result = await authenticationHelper.authenticatedCall(
         "$serverUrl/push/$realm", {},
-        body: json, method: "POST");
+        body: json, method: "POST", dbName: dbName);
     SyncInfo syncInfo = SyncInfo.fromJson(result);
 
     return syncInfo;
@@ -332,7 +339,7 @@ class SyncRepository {
 
   ///Import data from Server generating the DELETE, INSERT OR UPDATE calls
   Future<void> _importServerData(List<SyncData> syncDataList,
-      {dbName = defaultDBName}) async {
+      {required String dbName}) async {
     // Prepara le info sulle tabelle da sincronizzare
     for (var i = 0; i < syncDataList.length; i++) {
       final SyncData syncData = syncDataList.elementAt(i);
@@ -382,7 +389,7 @@ class SyncRepository {
           //debugPrint("PROCEDI A DECRYPT");
           // LOAD THE SECRET KEY
           if (EncryptHelper.secretKey == null) {
-            await sqliteWrapperSync.getSecretKey();
+            await sqliteWrapperSync.getSecretKey(dbName: dbName);
           }
           // Should encrypt data
           for (var fieldName in tableInfo.encryptedFields) {
@@ -404,7 +411,8 @@ class SyncRepository {
           }
         }*/
         // ADD to update other fields that must be set to null
-        await _addNullFields(syncData.tablename!, tableInfo.keyField, rowData);
+        await _addNullFields(syncData.tablename!, tableInfo.keyField, rowData,
+            dbName: dbName);
 
         // Valori
         final List values = rowData.values.toList(growable: true);
@@ -435,7 +443,7 @@ class SyncRepository {
     }
   }
 
-  Future<List<SyncData>> _getDataToSync({dbName = defaultDBName}) async {
+  Future<List<SyncData>> _getDataToSync({required String dbName}) async {
     final List<SyncData> syncDataList = List.empty(growable: true);
     for (String tableName in sqliteWrapperSync.tableInfos.keys) {
       final TableInfo tableInfo = sqliteWrapperSync.tableInfos[tableName]!;
@@ -451,7 +459,7 @@ class SyncRepository {
   Future<List<SyncData>> _getSyncData(String tableName, String keyField,
       {required List<String> binaryFields,
       required List<String> encryptedFields,
-      dbName = defaultDBName}) async {
+      required String dbName}) async {
     final sql =
         """SELECT sd.operation, sd.clientdate as clientdate, sd.rowguid as _guid, rowData.*
          from sync_data sd LEFT JOIN $tableName as rowData on rowData.$keyField=sd.rowguid
@@ -490,7 +498,7 @@ class SyncRepository {
 
         /// Load the secretKey is it's still not set...
         if (EncryptHelper.secretKey == null) {
-          await sqliteWrapperSync.getSecretKey();
+          await sqliteWrapperSync.getSecretKey(dbName: dbName);
         }
         // Should encrypt data
         for (var fieldName in encryptedFields) {
@@ -510,7 +518,7 @@ class SyncRepository {
   /// Memorizza sul DB le credenziali scambiate con il server
   Future<void> _configureSync(
       String name, String email, String password, String clientId,
-      {dbName = defaultDBName}) async {
+      {required String dbName}) async {
     const sqlUpdate =
         "INSERT INTO sync_details (name, clientid, useremail, userpassword) values (?,?,?,?)";
     await SQLiteWrapper().execute(sqlUpdate,
@@ -518,7 +526,7 @@ class SyncRepository {
   }
 
   /// Ottiene il client id (clientid e lastsync in una map) o restituisce null qualora non sia stato definito
-  _getSyncConfigDetails({dbName = defaultDBName}) async {
+  _getSyncConfigDetails({required String dbName}) async {
     const sql = "SELECT clientid, lastsync FROM sync_details";
     final row =
         await SQLiteWrapper().query(sql, singleResult: true, dbName: dbName);
@@ -529,7 +537,7 @@ class SyncRepository {
   }
 
   /// Create the insert LOGs for all the rows already in the DB
-  Future<void> _logPreviouslyInsertedData({dbName = defaultDBName}) async {
+  Future<void> _logPreviouslyInsertedData({required String dbName}) async {
     //Map<String, TableInfo> tableInfos = _getTableInfos();
     for (var i = 0; i < sqliteWrapperSync.tableInfos.keys.length; i++) {
       final String tableName = sqliteWrapperSync.tableInfos.keys.elementAt(i);
@@ -558,7 +566,7 @@ class SyncRepository {
 
   /// Return the list of all columns of a table
   Future<List<String>> _getAllTablesColumns(String table,
-      {dbName = defaultDBName}) async {
+      {required String dbName}) async {
     const sql = """SELECT p.name as columnName
                     FROM sqlite_master m
                     left outer join pragma_table_info((m.name)) p
@@ -574,9 +582,10 @@ class SyncRepository {
   /// object, because they are non sent to save space on the remote server and
   /// during connection
   Future<void> _addNullFields(
-      String table, String keyField, Map<String, dynamic> rowData) async {
+      String table, String keyField, Map<String, dynamic> rowData,
+      {required String dbName}) async {
     // Get all columns
-    List<String> columns = await _getAllTablesColumns(table);
+    List<String> columns = await _getAllTablesColumns(table, dbName: dbName);
     List<String> keys = rowData.keys.toList();
     // Remove columns already settable
     columns.removeWhere(

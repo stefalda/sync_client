@@ -5,7 +5,7 @@
 import FlutterMacOS
 import Foundation
 
-import device_info_plus_macos
+import device_info_plus
 import path_provider_foundation
 import sqlite3_flutter_libs
 

@@ -1,32 +1,33 @@
 PODS:
-  - device_info_plus_macos (0.0.1):
+  - device_info_plus (0.0.1):
     - FlutterMacOS
   - FlutterMacOS (1.0.0)
-  - path_provider_macos (0.0.1):
+  - path_provider_foundation (0.0.1):
+    - Flutter
     - FlutterMacOS
-  - sqlite3 (3.39.0):
-    - sqlite3/common (= 3.39.0)
-  - sqlite3/common (3.39.0)
-  - sqlite3/fts5 (3.39.0):
+  - "sqlite3 (3.46.1+1)":
+    - "sqlite3/common (= 3.46.1+1)"
+  - "sqlite3/common (3.46.1+1)"
+  - "sqlite3/dbstatvtab (3.46.1+1)":
     - sqlite3/common
-  - sqlite3/json1 (3.39.0):
+  - "sqlite3/fts5 (3.46.1+1)":
     - sqlite3/common
-  - sqlite3/perf-threadsafe (3.39.0):
+  - "sqlite3/perf-threadsafe (3.46.1+1)":
     - sqlite3/common
-  - sqlite3/rtree (3.39.0):
+  - "sqlite3/rtree (3.46.1+1)":
     - sqlite3/common
   - sqlite3_flutter_libs (0.0.1):
     - FlutterMacOS
-    - sqlite3 (~> 3.39.0)
+    - "sqlite3 (~> 3.46.0+1)"
+    - sqlite3/dbstatvtab
     - sqlite3/fts5
-    - sqlite3/json1
     - sqlite3/perf-threadsafe
     - sqlite3/rtree
 
 DEPENDENCIES:
-  - device_info_plus_macos (from `Flutter/ephemeral/.symlinks/plugins/device_info_plus_macos/macos`)
+  - device_info_plus (from `Flutter/ephemeral/.symlinks/plugins/device_info_plus/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
-  - path_provider_macos (from `Flutter/ephemeral/.symlinks/plugins/path_provider_macos/macos`)
+  - path_provider_foundation (from `Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin`)
   - sqlite3_flutter_libs (from `Flutter/ephemeral/.symlinks/plugins/sqlite3_flutter_libs/macos`)
 
 SPEC REPOS:
@@ -34,22 +35,22 @@ SPEC REPOS:
     - sqlite3
 
 EXTERNAL SOURCES:
-  device_info_plus_macos:
-    :path: Flutter/ephemeral/.symlinks/plugins/device_info_plus_macos/macos
+  device_info_plus:
+    :path: Flutter/ephemeral/.symlinks/plugins/device_info_plus/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
-  path_provider_macos:
-    :path: Flutter/ephemeral/.symlinks/plugins/path_provider_macos/macos
+  path_provider_foundation:
+    :path: Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin
   sqlite3_flutter_libs:
     :path: Flutter/ephemeral/.symlinks/plugins/sqlite3_flutter_libs/macos
 
 SPEC CHECKSUMS:
-  device_info_plus_macos: 1ad388a1ef433505c4038e7dd9605aadd1e2e9c7
-  FlutterMacOS: 57701585bf7de1b3fc2bb61f6378d73bbdea8424
-  path_provider_macos: 3c0c3b4b0d4a76d2bf989a913c2de869c5641a19
-  sqlite3: ddcd34fff6490ab01f36560b87eabbebf8b2121d
-  sqlite3_flutter_libs: 65803af6a06f8640ec53d0fc100c91164c02e341
+  device_info_plus: ce1b7762849d3ec103d0e0517299f2db7ad60720
+  FlutterMacOS: 8f6f14fa908a6fb3fba0cd85dbd81ec4b251fb24
+  path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
+  sqlite3: 0bb0e6389d824e40296f531b858a2a0b71c0d2fb
+  sqlite3_flutter_libs: 5ca46c1a04eddfbeeb5b16566164aa7ad1616e7b
 
-PODFILE CHECKSUM: 6eac6b3292e5142cfc23bdeb71848a40ec51c14c
+PODFILE CHECKSUM: 2d0577b32f3e512b3df296b80562e6ba03596f3d
 
-COCOAPODS: 1.11.3
+COCOAPODS: 1.15.2

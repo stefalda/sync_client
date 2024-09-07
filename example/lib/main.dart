@@ -14,13 +14,13 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'SQLiteWrapper Sample',
+      title: 'SQLiteWrapperSync Sample',
       theme: ThemeData(
         primarySwatch: Colors.red,
       ),
@@ -32,7 +32,7 @@ class MyApp extends StatelessWidget {
 class HomePage extends StatelessWidget {
   final String title;
 
-  const HomePage({Key? key, required this.title}) : super(key: key);
+  const HomePage({super.key, required this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -42,17 +42,34 @@ class HomePage extends StatelessWidget {
         // the App.build method, and use it to set our appbar title.
         title: Text(title),
       ),
-      body: const Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            TodoList(
-              dbName: dbName1,
-            ),
-            TodoList(dbName: dbName2),
-          ]),
-      floatingActionButton: IconButton(
-        icon: const Icon(Icons.sync_alt_outlined),
-        onPressed: () => DatabaseHelper().sync(dbName1, dbName2),
+      body: Column(
+        mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const Expanded(
+            child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TodoList(
+                    dbName: dbName1,
+                  ),
+                  TodoList(dbName: dbName2),
+                ]),
+          ),
+
+          /// Bottom buttons to perform registration and sync
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              TextButton(
+                  onPressed: () => DatabaseHelper().register(dbName1, dbName2),
+                  child: const Text("Register")),
+              TextButton(
+                  onPressed: () => DatabaseHelper().sync(dbName1, dbName2),
+                  child: const Text("Sync"))
+            ],
+          )
+        ],
       ),
 
       // This trailing comma makes auto-formatting nicer for build methods.

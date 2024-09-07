@@ -9,10 +9,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  sqlite_wrapper: ^0.1.1
-  #  path: ./../../../open-source/sqlite_wrapper
+  sqlite_wrapper: # ^0.2.0-dev-1
+    path: ./../../../open-source/sqlite_wrapper
   path: ^1.8.3 # Required to compute path
-  #sqlite3_flutter_libs: ^0.5.7 # Required by Android
+  sqlite3_flutter_libs: ^0.5.24 # Required by Android
   uuid: ^4.1.0
   crypt: ^4.3.0
   crypto: ^3.0.3
@@ -20,6 +20,6 @@ dependencies:
   dio: ^5.3.3
 
 dev_dependencies:
-  flutter_lints: ^2.0.3
-  lints: ^2.1.1
+  flutter_lints: ^4.0.0
+  lints: ^4.0.0
   test: ^1.24.7

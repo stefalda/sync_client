@@ -4,7 +4,10 @@ import 'package:sqlite_wrapper_sample/database_helper.dart';
 import 'package:sqlite_wrapper_sample/models.dart';
 import 'package:sync_client/sync_client.dart';
 
-const serverUrl = "localhost:8080";
+const serverUrl = "http://localhost:3000";
+
+const mainDBName = "database1";
+const secondaryDBName = "database2";
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,7 +28,7 @@ void main() async {
         name: "Test 1",
         email: "test@test.com",
         password: "test",
-        deviceInfo: "TEST OS",
+        deviceInfo: "{\"name\":\"TEST OS 1\"}",
         dbName: mainDBName,
         secretKey: "",
         newRegistration: true,
@@ -34,7 +37,7 @@ void main() async {
         name: "Test 2",
         email: "test@test.com",
         password: "test",
-        deviceInfo: "TEST OS",
+        deviceInfo: "{\"name\":\"TEST OS 2\"}",
         dbName: secondaryDBName,
         secretKey: "",
         newRegistration: false,
