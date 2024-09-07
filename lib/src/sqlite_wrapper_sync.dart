@@ -1,4 +1,4 @@
-import 'package:sqlite_wrapper/sqlite_wrapper_core.dart';
+import 'package:sqlite_wrapper/sqlite_wrapper.dart';
 import 'package:sync_client/src/debug_utils.dart';
 import 'package:sync_client/sync_client.dart';
 import 'package:uuid/uuid.dart';

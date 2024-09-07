@@ -8,8 +8,8 @@
 /// - TableInfos
 library sync_client;
 
-export 'package:sqlite_wrapper/sqlite_wrapper_base.dart'
-    show inMemoryDatabasePath, DatabaseInfo, defaultDBName;
+export 'package:sqlite_wrapper/sqlite_wrapper.dart'
+    show inMemoryDatabasePath, DatabaseInfo, defaultDBName, isRunningOnWeb;
 
 export 'src/db/models/sync_details.dart';
 export 'src/encrypt_helper.dart';

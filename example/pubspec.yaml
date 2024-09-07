@@ -29,14 +29,15 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  path_provider: # Requfired to find the system documents directory
-  path: ^1.8.1 # Required to compute path
-  sqlite3_flutter_libs: ^0.5.7 # Required by Android
-  uuid:
-  http:
-  device_info_plus: ^10.1.2
+  path_provider: ^2.1.4 # Required to find the system documents directory - not web
+  path: ^1.9.0 # Required to compute path
+  sqlite3_flutter_libs: ^0.5.24 # Not web
+  uuid: ^4.5.0
+  http: ^1.2.2
+  #device_info_plus: ^10.1.2
   sync_client:
     path: ./../
+  sqflite_common_ffi_web: ^0.4.5+2 # dart run sqflite_common_ffi_web:setup --force
 
 dev_dependencies:
   flutter_test:

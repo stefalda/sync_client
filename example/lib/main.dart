@@ -20,7 +20,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'SQLiteWrapperSync Sample',
+      title: 'SQLiteWrapper Sample',
       theme: ThemeData(
         primarySwatch: Colors.red,
       ),

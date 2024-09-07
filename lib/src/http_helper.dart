@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dio/browser.dart';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:sync_client/src/debug_utils.dart';
@@ -22,6 +23,10 @@ class HttpHelper {
   static final dio = Dio();
 
   static void initAdapter() {
+    if (isRunningOnWeb()) {
+      dio.httpClientAdapter = BrowserHttpClientAdapter();
+      return;
+    }
     dio.httpClientAdapter = IOHttpClientAdapter(
       createHttpClient: () {
         // Config the client.

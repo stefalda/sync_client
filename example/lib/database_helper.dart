@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite_wrapper_sample/models.dart';
@@ -31,11 +31,16 @@ class DatabaseHelper {
           f.deleteSync();
         }
       } else {
-        final docDir = await getApplicationDocumentsDirectory();
-        if (!await docDir.exists()) {
-          await docDir.create(recursive: true);
+        if (!kIsWeb) {
+          final docDir = await getApplicationDocumentsDirectory();
+          if (!await docDir.exists()) {
+            await docDir.create(recursive: true);
+          }
+          dbPath = p.join(docDir.path, "$dbName.sqlite");
+        } else {
+          // WEB VERSION
+          dbPath = dbName;
         }
-        dbPath = p.join(docDir.path, "$dbName.sqlite");
       }
     }
     final DatabaseInfo dbInfo = await sqLiteWrapperSync
