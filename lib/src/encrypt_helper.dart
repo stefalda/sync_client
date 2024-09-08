@@ -53,7 +53,7 @@ class EncryptHelper {
   }
 
   /// Return the secret key, check if it's been set or throws an Exception
-  /// if hte secretKey is missing
+  /// if the secretKey is missing
   static Key _getKey() {
     if (_key != null) return _key!;
     // secretKey MUST BE VALORIZED before encrypting/decrypting
@@ -67,7 +67,6 @@ class EncryptHelper {
   static Encrypter _getEncrypter() {
     if (_encrypter != null) return _encrypter!;
     _encrypter = Encrypter(AES(_getKey()));
-    //_encrypter = Encrypter(AES(_getKey(), mode: AESMode.cbc, padding: "PKCS7"));
     return _encrypter!;
   }
 }

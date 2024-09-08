@@ -93,6 +93,7 @@ syncRepository!.register(
    secretKey: secretKeyController.text.trim(), // Passed only if it's a client registration, not a new registration.
    newRegistration: true);
 ```
+If the user is already registered and only a Client registration is needed you shoudl pass `newRegistration: false`.
 
 If any fields are listed in the `encryptedFields` of the `TableInfo` object, you must ensure that the **ENCRYPTION SECRET KEY** has been set during the `SyncRepository.register` call. Otherwise, the library will display an error.
 
