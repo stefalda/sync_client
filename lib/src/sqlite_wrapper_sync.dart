@@ -1,4 +1,4 @@
-import 'package:sqlite_wrapper/sqlite_wrapper_core.dart';
+import 'package:sqlite_wrapper/sqlite_wrapper.dart';
 import 'package:sync_client/src/debug_utils.dart';
 import 'package:sync_client/sync_client.dart';
 import 'package:uuid/uuid.dart';
@@ -22,18 +22,16 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
   }
 
   /// Store the secretKey in the DB in the sync_encryption table
-  setSecretKey(String value, {dbName = defaultDBName}) async {
+  setSecretKey(String value, {required String dbName}) async {
     await super.insert({'secretkey': value}, "sync_encryption", dbName: dbName);
   }
 
   /// Read the secretKey in the DB, returns null if it's not set...
   /// If it's set enable encryption by saving it in EncryptHelper
-  Future<String?> getSecretKey({dbName = defaultDBName}) async {
+  Future<String?> getSecretKey({required String dbName}) async {
     String? key = await super.query("SELECT secretkey FROM sync_encryption",
         singleResult: true, dbName: dbName);
-    if (key != null) {
-      EncryptHelper.secretKey = key;
-    }
+    EncryptHelper.secretKey = key;
     return key;
   }
 
@@ -48,10 +46,9 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
    * Memorizza la modifica per la sincronizzazione (solo se la sincronizzazione è configurata)
    */
   logOperation(String tableName, Operation operation, String rowguid,
-      {dbName = defaultDBName, force = false}) async {
+      {required String dbName, force = false}) async {
     // Check if the table is configured for logging in the tableInfos
     if (!tableInfos.keys.contains(tableName)) return;
-    dbName ??= defaultDBName;
     debugPrint("LOG OPERATION $tableName - $operation - rowguid $rowguid");
     // Check if the client is configured for logging
     final shouldLog = await isSyncConfigured(dbName: dbName);
@@ -106,12 +103,12 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
   /// and return the new id
   @override
   Future<int> insert(Map<String, dynamic> map, String table,
-      {String? dbName, tryToLogOperation = true}) async {
+      {String? dbName = defaultDBName, tryToLogOperation = true}) async {
     final res = await super.insert(map, table, dbName: dbName);
     //Log
     if (tryToLogOperation) {
       await logOperation(table, Operation.insert, map[_getKeyField(table)],
-          dbName: dbName);
+          dbName: dbName!);
     }
     return res;
   }
@@ -119,11 +116,13 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
   // Perform an INSERT or an UPDATE depending on the record state (UPSERT)
   @override
   Future<int> save(Map<String, dynamic> map, String table,
-      {List<String>? keys, String? dbName, tryToLogOperation = true}) async {
+      {List<String>? keys,
+      String? dbName = defaultDBName,
+      tryToLogOperation = true}) async {
     final res = await super.save(map, table, keys: keys, dbName: dbName);
     if (tryToLogOperation) {
       await logOperation(table, Operation.update, map[_getKeyField(table)],
-          dbName: dbName);
+          dbName: dbName!);
     }
     return res;
   }
@@ -131,12 +130,12 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
   @override
   Future<int> update(Map<String, dynamic> map, String table,
       {required List<String> keys,
-      String? dbName,
+      String? dbName = defaultDBName,
       tryToLogOperation = true}) async {
     final res = await super.update(map, table, keys: keys, dbName: dbName);
     if (tryToLogOperation) {
       await logOperation(table, Operation.update, map[_getKeyField(table)],
-          dbName: dbName);
+          dbName: dbName!);
     }
     return res;
   }
@@ -145,19 +144,19 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
   @override
   Future<int> delete(Map<String, dynamic> map, String table,
       {required List<String> keys,
-      String? dbName,
+      String? dbName = defaultDBName,
       tryToLogOperation = true}) async {
     final res = await super.delete(map, table, keys: keys, dbName: dbName);
     if (tryToLogOperation) {
       await logOperation(table, Operation.delete, map[_getKeyField(table)],
-          dbName: dbName);
+          dbName: dbName!);
     }
     return res;
   }
 
   ///////////////////////////////////
 
-  Future<bool> isSyncConfigured({dbName = defaultDBName}) async {
+  Future<bool> isSyncConfigured({required String dbName}) async {
     if (syncConfigured == SyncEnabled.unknown) {
       const sql = "SELECT count(*) as C FROM ${SyncDetails.tableName}";
       final int count = await query(sql, singleResult: true, dbName: dbName);
@@ -168,7 +167,7 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
   }
 
   /// Get the current SyncDetails  or null if sync is not yet configured
-  Future<SyncDetails?> getSyncDetails({dbName = defaultDBName}) async {
+  Future<SyncDetails?> getSyncDetails({required String dbName}) async {
     return await super.query("SELECT * FROM ${SyncDetails.tableName}",
         singleResult: true,
         params: [],
@@ -177,7 +176,7 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
   }
 
   /// Get the current SyncDetails  or null if sync is not yet configured
-  Future<bool> shouldSync({dbName = defaultDBName}) async {
+  Future<bool> shouldSync({required String dbName}) async {
     return await super.query("SELECT COUNT(*) FROM ${SyncData.tableName}",
             singleResult: true,
             params: [],
@@ -186,13 +185,14 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
         0;
   }
 
-  Future<void> _deleteSyncDataRow(SyncData existingLogRow, dbName) async {
+  Future<void> _deleteSyncDataRow(
+      SyncData existingLogRow, String dbName) async {
     await super.delete(existingLogRow.toMap(), SyncData.tableName,
         keys: ["id"], dbName: dbName);
   }
 
   _insertLogRow(String tableName, String operation, String rowguid,
-      {dbName = defaultDBName}) async {
+      {required String dbName}) async {
     final SyncData syncData = SyncData(
         tablename: tableName,
         rowguid: rowguid,
@@ -221,7 +221,7 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
 
   Future<SyncData?> _existingLogRow(
       String tableName, String rowguid, String? operationFilter,
-      {String dbName = defaultDBName}) async {
+      {required String dbName}) async {
     String sql =
         "SELECT id, tablename, rowguid, operation, clientdate FROM ${SyncData.tableName} WHERE tablename = ? AND rowguid = ?";
     if (operationFilter != null) {
@@ -250,7 +250,7 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
   }
 
   /// Create the sync tables
-  Future<void> initSyncTables({dbName = defaultDBName}) async {
+  Future<void> initSyncTables({required String dbName}) async {
     final sql = """
               CREATE TABLE IF NOT EXISTS sync_data (id integer PRIMARY KEY AUTOINCREMENT NOT NULL,   tablename varchar(255) NOT NULL,  rowguid varchar(36) NOT NULL,  operation char(1) NOT NULL,  clientdate timestamp(128) NOT NULL);
               CREATE TABLE IF NOT EXISTS sync_details (clientid varchar(36) PRIMARY KEY NOT NULL, name varchar(255), useremail varchar(255) NOT NULL, userpassword varchar(255) NOT NULL, lastsync timestamp(128), accesstoken varchar(36), refreshtoken varchar(36), accesstokenexpiration timestamp(128));
@@ -260,18 +260,19 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
   }
 
   /// Cycle to all the synced tables and populate them with datas...
-  Future<void> insertInitialSyncData() async {
+  Future<void> insertInitialSyncData({required String dbName}) async {
     final now = DateTime.now();
     for (String tablename in tableInfos.keys) {
       final TableInfo? tableInfo = tableInfos[tablename];
-      await _insertInitialSyncData(tablename, tableInfo!.keyField, now);
+      await _insertInitialSyncData(tablename, tableInfo!.keyField, now,
+          dbName: dbName);
     }
   }
 
   /// Perform the insert for the specific table
   Future<void> _insertInitialSyncData(
       String tablename, String keyfield, DateTime now,
-      {String dbName = defaultDBName}) async {
+      {required String dbName}) async {
     await execute(
         """INSERT INTO sync_data (tablename, rowguid, operation, clientdate)
                     SELECT '$tablename', $keyfield, 'I', ? FROM $tablename LEFT JOIN sync_data on sync_data.rowguid=$keyfield WHERE sync_data.rowguid is null""",

@@ -6,7 +6,7 @@ class TodoItem extends StatelessWidget {
   final Todo todo;
   final String dbName;
 
-  const TodoItem(this.todo, {required this.dbName, Key? key}) : super(key: key);
+  const TodoItem(this.todo, {required this.dbName, super.key});
 
   @override
   Widget build(BuildContext context) {

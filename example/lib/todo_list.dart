@@ -5,7 +5,7 @@ import 'package:sqlite_wrapper_sample/models.dart';
 import 'package:sqlite_wrapper_sample/todo_item.dart';
 
 class TodoList extends StatelessWidget {
-  const TodoList({required this.dbName, Key? key}) : super(key: key);
+  const TodoList({required this.dbName, super.key});
   final String dbName;
 
   void _addNewTodo() {
