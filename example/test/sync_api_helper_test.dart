@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqlite_wrapper_sample/database_helper.dart';
-import 'package:sqlite_wrapper_sample/models.dart';
+import 'package:sqlite_wrapper_sync_sample/database_helper.dart';
+import 'package:sqlite_wrapper_sync_sample/models.dart';
 import 'package:sync_client/sync_client.dart';
 
 const serverUrl = "http://localhost:3000";

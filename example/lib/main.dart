@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:sqlite_wrapper_sample/database_helper.dart';
-import 'package:sqlite_wrapper_sample/todo_list.dart';
+import 'package:sqlite_wrapper_sync_sample/database_helper.dart';
+import 'package:sqlite_wrapper_sync_sample/todo_list.dart';
 
 const dbName1 = "primaryDB";
 const dbName2 = "secondaryDB";

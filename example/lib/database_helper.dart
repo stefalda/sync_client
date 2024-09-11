@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:sqlite_wrapper_sample/models.dart';
+import 'package:sqlite_wrapper_sync_sample/models.dart';
 import 'package:sync_client/sync_client.dart';
 
 /// Singleton class to operate with the database and the sync server
