@@ -2,10 +2,9 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dio/browser.dart';
 import 'package:dio/dio.dart';
-import 'package:dio/io.dart';
 import 'package:sync_client/src/debug_utils.dart';
+import 'package:sync_client/src/dio_adapter/dio_adapter.dart';
 import 'package:sync_client/sync_client.dart';
 
 class CustomHttpException implements Exception {
@@ -22,27 +21,6 @@ class CustomHttpException implements Exception {
 class HttpHelper {
   static final dio = Dio();
 
-  static void initAdapter() {
-    if (isRunningOnWeb()) {
-      dio.httpClientAdapter = BrowserHttpClientAdapter();
-      return;
-    }
-    dio.httpClientAdapter = IOHttpClientAdapter(
-      createHttpClient: () {
-        // Config the client.
-        /*client.findProxy = (uri) {
-          // Forward all request to proxy "localhost:8888".
-          // Be aware, the proxy should went through you running device,
-          // not the host platform.
-          return 'PROXY localhost:9090';
-        };*/
-        // You can also create a new HttpClient for Dio instead of returning,
-        // but a client must being returned here.
-        return HttpClient();
-      },
-    );
-  }
-
   /// Return a MAP from the downloaded JSON or throws an Exception
   ///
   static Future<dynamic> call(String url, Map<String, String?>? params,
@@ -50,7 +28,7 @@ class HttpHelper {
       Object? body,
       Map<String, String> additionalHeaders = const {}}) async {
     try {
-      initAdapter();
+      DioAdapterInterface().initAdapter(dio);
 
       Map<String, String> headers = HashMap();
       headers['Accept'] = 'application/json';
