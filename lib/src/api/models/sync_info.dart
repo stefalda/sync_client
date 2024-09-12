@@ -3,7 +3,7 @@ class SyncInfo {
 
   SyncInfo.fromJson(Map<String, dynamic> json) {
     lastSync = json['lastSync'] != null
-        ? DateTime.fromMillisecondsSinceEpoch(json['lastSync'])
+        ? DateTime.fromMillisecondsSinceEpoch(json['lastSync'], isUtc: true)
         : null;
   }
 }

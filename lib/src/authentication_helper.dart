@@ -52,7 +52,9 @@ class AuthenticationHelper {
     if (detail.accessToken == null) {
       detail = await _registerForAToken(detail, dbName: dbName);
     }
-    if (DateTime.now().isAfter(detail.accessTokenExpiration ?? DateTime(0))) {
+    if (DateTime.now()
+        .toUtc()
+        .isAfter(detail.accessTokenExpiration ?? DateTime(0))) {
       detail = await _refreshToken(detail, dbName: dbName);
     }
     return detail.accessToken;
@@ -116,8 +118,9 @@ class AuthenticationHelper {
       {required String dbName}) async {
     syncDetails.accessToken = tokenData['access_token'];
     syncDetails.refreshToken = tokenData['refresh_token'];
-    syncDetails.accessTokenExpiration =
-        DateTime.fromMillisecondsSinceEpoch(tokenData['expires_on']);
+    syncDetails.accessTokenExpiration = DateTime.fromMillisecondsSinceEpoch(
+        tokenData['expires_on'],
+        isUtc: true);
     await SQLiteWrapper().save(syncDetails.toMap(), SyncDetails.tableName,
         dbName: dbName, keys: ['clientid']);
     return syncDetails;

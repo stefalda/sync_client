@@ -263,7 +263,7 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
 
   /// Cycle to all the synced tables and populate them with datas...
   Future<void> insertInitialSyncData({required String dbName}) async {
-    final now = DateTime.now();
+    final now = DateTime.now().toUtc();
     for (String tablename in tableInfos.keys) {
       final TableInfo? tableInfo = tableInfos[tablename];
       await _insertInitialSyncData(tablename, tableInfo!.keyField, now,

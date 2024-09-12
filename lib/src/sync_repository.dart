@@ -477,7 +477,7 @@ class SyncRepository {
       // Dati da sync_data
       syncData.operation = row["operation"] as String;
       syncData.clientdate =
-          DateTime.fromMillisecondsSinceEpoch(row["clientdate"] as int);
+          DateTime.fromMillisecondsSinceEpoch(row["clientdate"] as int, isUtc: true);
       // Il risultato della query è immutabile quindi ne creo un clone per
       // manipolarlo
       final rowData = Map<String, dynamic>.from(row);

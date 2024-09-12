@@ -12,7 +12,8 @@ class SyncData {
     rowguid = row["rowguid"];
     operation = row["operation"];
     tablename = row["tablename"];
-    clientdate = DateTime.fromMillisecondsSinceEpoch(row["clientdate"]);
+    clientdate =
+        DateTime.fromMillisecondsSinceEpoch(row["clientdate"], isUtc: true);
     id = row["id"];
   }
 
@@ -29,7 +30,7 @@ class SyncData {
     rowguid = json['rowguid'];
     tablename = json['tablename'];
     clientdate = json['clientdate'] != null
-        ? DateTime.fromMillisecondsSinceEpoch(json['clientdate'])
+        ? DateTime.fromMillisecondsSinceEpoch(json['clientdate'], isUtc: true)
         : null;
     rowData = json['rowData'];
   }

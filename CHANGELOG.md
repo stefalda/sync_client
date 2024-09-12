@@ -9,3 +9,6 @@
 
 ## 1.2.0
 - Reviewed code for multiplatform imports
+
+## 1.2.1
+- Forced all dates to be UTC

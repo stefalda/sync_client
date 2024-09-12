@@ -14,11 +14,13 @@ class SyncDetails {
     clientid = row["clientid"];
     useremail = row["useremail"];
     userpassword = row["userpassword"];
-    lastsync = DateTime.fromMillisecondsSinceEpoch(row["lastsync"] ?? 0);
+    lastsync =
+        DateTime.fromMillisecondsSinceEpoch(row["lastsync"] ?? 0, isUtc: true);
     accessToken = row["accesstoken"];
     refreshToken = row["refreshtoken"];
     accessTokenExpiration = row["accesstokenexpiration"] != null
-        ? DateTime.fromMillisecondsSinceEpoch(row["accesstokenexpiration"])
+        ? DateTime.fromMillisecondsSinceEpoch(row["accesstokenexpiration"],
+            isUtc: true)
         : null;
   }
 
@@ -38,12 +40,13 @@ class SyncDetails {
     useremail = json['useremail'];
     userpassword = json['userpassword'];
     lastsync = json['lastsync'] != null
-        ? DateTime.fromMillisecondsSinceEpoch(json['lastsync'])
-        : DateTime.fromMillisecondsSinceEpoch(0);
+        ? DateTime.fromMillisecondsSinceEpoch(json['lastsync'], isUtc: true)
+        : DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
     accessToken = json['accesstoken'];
     refreshToken = json['refreshtoken'];
     accessTokenExpiration = json['accesstokenexpiration'] != null
-        ? DateTime.fromMillisecondsSinceEpoch(json['accesstokenexpiration'])
+        ? DateTime.fromMillisecondsSinceEpoch(json['accesstokenexpiration'],
+            isUtc: true)
         : null;
   }
 
