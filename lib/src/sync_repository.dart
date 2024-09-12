@@ -60,7 +60,7 @@ class SyncRepository {
     final json = jsonEncode(userRegistration.toMap());
     try {
       // Call the server
-      dynamic result = await HttpHelper.call("$serverUrl/register/$realm", {},
+      dynamic result = await httpHelper.call("$serverUrl/register/$realm", {},
           body: json, method: "POST");
 
       // Save the name
@@ -210,7 +210,7 @@ class SyncRepository {
   ///   with a PIN that must be used set the new password
   ///   using the changePassword method
   Future<void> forgottenPassword({required String email}) async {
-    await HttpHelper.call("$serverUrl/password/$realm/forgotten", {},
+    await httpHelper.call("$serverUrl/password/$realm/forgotten", {},
         body: jsonEncode({"email": email}), method: "POST");
   }
 
@@ -224,7 +224,7 @@ class SyncRepository {
         PasswordChange(email: email, password: password, pin: pin);
     final json = jsonEncode(passwordChange.toMap());
     try {
-      await HttpHelper.call("$serverUrl/password/$realm/change", {},
+      await httpHelper.call("$serverUrl/password/$realm/change", {},
           body: json, method: "POST");
       // Update the password in the db
       const sqlUpdate = "UPDATE sync_details SET userpassword = ?";

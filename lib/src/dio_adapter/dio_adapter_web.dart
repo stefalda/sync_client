@@ -7,6 +7,12 @@ DioAdapterInterface getInstance() => DioAdapterWeb();
 class DioAdapterWeb implements DioAdapterInterface {
   @override
   void initAdapter(Dio dio) {
-    dio.httpClientAdapter = BrowserHttpClientAdapter();
+    dio.httpClientAdapter = makeHttpClientAdapter();
   }
+}
+
+HttpClientAdapter makeHttpClientAdapter() {
+  final adapter = HttpClientAdapter() as BrowserHttpClientAdapter;
+  adapter.withCredentials = true;
+  return adapter;
 }

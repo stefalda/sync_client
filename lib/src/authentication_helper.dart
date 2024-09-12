@@ -22,7 +22,7 @@ class AuthenticationHelper {
       required String dbName}) async {
     final token = await _getToken(dbName: dbName);
     try {
-      return await HttpHelper.call(url, params,
+      return await httpHelper.call(url, params,
           body: body,
           method: method,
           additionalHeaders:
@@ -74,7 +74,7 @@ class AuthenticationHelper {
   Future<SyncDetails> _registerForAToken(SyncDetails syncDetails,
       {required String dbName}) async {
     // Authorization: Basic username:password
-    Map<String, dynamic> tokenData = await HttpHelper.call(
+    Map<String, dynamic> tokenData = await httpHelper.call(
         "$serverUrl/login/$realm", {},
         body: jsonEncode({"clientId": syncDetails.clientid}),
         additionalHeaders: HttpHelper.simpleAuthenticationHeader(
@@ -89,7 +89,7 @@ class AuthenticationHelper {
   Future<SyncDetails> _refreshToken(SyncDetails syncDetails,
       {required String dbName}) async {
     try {
-      Map<String, dynamic> tokenData = await HttpHelper.call(
+      Map<String, dynamic> tokenData = await httpHelper.call(
           "$serverUrl/login/$realm/refreshToken", {},
           body: jsonEncode({"refreshToken": syncDetails.refreshToken}),
           method: 'POST');

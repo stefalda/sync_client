@@ -128,7 +128,7 @@ class DatabaseHelper {
   /// Get the sync repository configuration (URL and REALM)
   dynamic _getSyncRepository() {
     return SyncRepository(
-        serverUrl: "http://localhost:8076",
+        serverUrl: "http://localhost:3000",
         sqliteWrapperSync: sqLiteWrapperSync,
         realm: "default");
   }

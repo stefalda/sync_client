@@ -4,8 +4,13 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:sync_client/src/debug_utils.dart';
-import 'package:sync_client/src/dio_adapter/dio_adapter.dart';
 import 'package:sync_client/sync_client.dart';
+
+final dio = Dio(
+  BaseOptions(
+    connectTimeout: const Duration(seconds: 3),
+  ),
+);
 
 class CustomHttpException implements Exception {
   final int statusCode;
@@ -19,16 +24,14 @@ class CustomHttpException implements Exception {
 }
 
 class HttpHelper {
-  static final dio = Dio();
-
   /// Return a MAP from the downloaded JSON or throws an Exception
   ///
-  static Future<dynamic> call(String url, Map<String, String?>? params,
+  Future<dynamic> call(String url, Map<String, String?>? params,
       {String? method,
       Object? body,
       Map<String, String> additionalHeaders = const {}}) async {
     try {
-      DioAdapterInterface().initAdapter(dio);
+      //DioAdapterInterface().initAdapter(dio);
 
       Map<String, String> headers = HashMap();
       headers['Accept'] = 'application/json';
@@ -117,3 +120,6 @@ class HttpHelper {
 class ConnectionRefusedException implements Exception {}
 
 class UnauthorizedException implements Exception {}
+
+// Expose a single instance of httpHelper
+final HttpHelper httpHelper = HttpHelper();

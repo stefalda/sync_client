@@ -29,3 +29,7 @@ class DioAdapterMobile implements DioAdapterInterface {
     );
   }
 }
+
+HttpClientAdapter makeHttpClientAdapter() {
+  return IOHttpClientAdapter();
+}

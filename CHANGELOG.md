@@ -6,3 +6,6 @@
 
 ## 1.1.0
 - Added web support
+
+## 1.2.0
+- Reviewed code for multiplatform imports
