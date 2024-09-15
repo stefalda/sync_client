@@ -144,6 +144,8 @@ class SyncRepository {
   ///   PUSH - to send all the (valid) changes to the server
   ///
   Future<void> sync({required String dbName}) async {
+    late String clientId;
+    bool syncing = false;
     try {
       // Ottieni il clientid
       var clientInfo = await _getSyncConfigDetails(dbName: dbName);
@@ -151,13 +153,9 @@ class SyncRepository {
         throw SyncException("You have to configure the Sync!",
             type: SyncExceptionType.syncConfigurationMissing);
       }
-      String clientId = clientInfo["clientid"];
+      clientId = clientInfo["clientid"];
       int lastSync = clientInfo["lastsync"] ?? 0;
-
-      // Controlla quali copertine sono già presenti sul server o quali sono "custom"
-      // final synController = SyncCovers();
-      // await synController.checkCustomCovers();
-
+      syncing = true;
       _debugPrint("Get the changes list from the DB $dbName");
       // Ottieni l'elenco delle modifiche da inviare
       List<SyncData> syncDataList = await _getDataToSync(dbName: dbName);
@@ -202,6 +200,12 @@ class SyncRepository {
             type: SyncExceptionType.alreadySyncing);
       }
       throw SyncException(ex.toString(), type: SyncExceptionType.generic);
+    } finally {
+      // If it's syncing tell the server that it's not syncing anymore
+      // but that the sync failed
+      if (syncing) {
+        await _cancelSync(clientId, dbName: dbName);
+      }
     }
   }
 
@@ -322,6 +326,19 @@ class SyncRepository {
     return syncInfo;
   }
 
+  /// Sync should be stopped...
+  Future<void> _cancelSync(String clientId, {required String dbName}) async {
+    try {
+      final json = jsonEncode({"clientId": clientId});
+      // This call unexptectly returns even if it's awaited
+      await authenticationHelper.authenticatedCall(
+          "$serverUrl/cancelSync/$realm", {},
+          body: json, method: "POST", dbName: dbName);
+    } on Exception catch (e) {
+      debugPrint("Error during cancelSync: ${e.toString()}");
+    }
+  }
+
   /**
    * Cicla sui SyncData e aggionge i dati delle righe
       Future<List<SyncData>> _completeData(List<SyncData> syncDataList) async {
@@ -436,6 +453,9 @@ class SyncRepository {
                 (
                 ${values.map((e) => "?").join(', ')}
                 )""";
+          _debugPrint(
+              "Processing rowguid - ${syncData.rowguid} - table: ${syncData.tablename} operation:  ${syncData.operation}");
+
           await await SQLiteWrapper().execute(sql,
               params: values, dbName: dbName, tables: [syncData.tablename!]);
         }
@@ -476,8 +496,9 @@ class SyncRepository {
       syncData.tablename = tableName;
       // Dati da sync_data
       syncData.operation = row["operation"] as String;
-      syncData.clientdate =
-          DateTime.fromMillisecondsSinceEpoch(row["clientdate"] as int, isUtc: true);
+      syncData.clientdate = DateTime.fromMillisecondsSinceEpoch(
+          row["clientdate"] as int,
+          isUtc: true);
       // Il risultato della query è immutabile quindi ne creo un clone per
       // manipolarlo
       final rowData = Map<String, dynamic>.from(row);
