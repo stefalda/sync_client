@@ -11,7 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
   sqlite_wrapper:
-    ^0.2.2
+    ^0.2.3
     #path: ./../../../open-source/sqlite_wrapper
   sqlite3_flutter_libs: ^0.5.24 # Required by Android
   uuid: ^4.1.0
