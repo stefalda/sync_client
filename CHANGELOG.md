@@ -12,3 +12,6 @@
 
 ## 1.2.1
 - Forced all dates to be UTC
+
+## 1.2.2
+- Removed timeout from http calls

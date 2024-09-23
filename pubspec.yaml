@@ -1,6 +1,6 @@
 name: sync_client
 description: A library to sync based on sqlite_wrapper
-version: 1.2.1
+version: 1.2.2
 homepage: https://github.com/stefalda/sync_client
 issue_tracker: https://github.com/stefalda/sync_client/issues
 

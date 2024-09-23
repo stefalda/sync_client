@@ -8,8 +8,8 @@ import 'package:sync_client/sync_client.dart';
 
 final dio = Dio(
   BaseOptions(
-    connectTimeout: const Duration(seconds: 3),
-  ),
+      // connectTimeout: const Duration(seconds: 3),
+      ),
 );
 
 class CustomHttpException implements Exception {
