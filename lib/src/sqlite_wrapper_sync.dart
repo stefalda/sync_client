@@ -16,8 +16,7 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
   final Uuid _uuid = const Uuid();
   final Map<String, TableInfo> tableInfos;
 
-  /// Encryption
-
+  
   /// Genereate a new Key that must be saved somewhere by calling the setSecretKey (for instance)
   String generateSecretKey() {
     return EncryptHelper.generateSecretKey();
@@ -37,15 +36,17 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
     return key;
   }
 
+  /// Holds the current state of the sync configuration
   SyncEnabled syncConfigured = SyncEnabled.unknown;
-  // Serve per verificare se è in corso una sincronizzazione
-  // in caso positivo, ad esempio, non scrive le righe di log...
+
+  /// Used to verify if a synchronization is in progress
+  // if true, for example, it doesn't write the log rows...
   bool isSyncing = false;
 
   SQLiteWrapperSync({required this.tableInfos}) : super();
 
   /*
-   * Memorizza la modifica per la sincronizzazione (solo se la sincronizzazione è configurata)
+   * Store the modification for synchronization (only if synchronization is configured)
    */
   logOperation(String tableName, Operation operation, String rowguid,
       {required String dbName, force = false}) async {
@@ -58,43 +59,39 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
       debugPrint("Skipping LOG $shouldLog");
       return;
     }
-    // Segue la logica documentata a seconda dell'operazione
+    // Follow the documented logic depending on the operation
     switch (operation) {
       case Operation.delete:
-        // Verifichiamo se abbiamo una riga preesistente
+        // Check if there is an existing log row  
         SyncData? existingLogRow =
             await _existingLogRow(tableName, rowguid, null, dbName: dbName);
         if (existingLogRow != null) {
-          // Cancelliamo la riga sia che fosse una I o una U
+          // Delete the row whether it was an I or a U
           await _deleteSyncDataRow(existingLogRow, dbName);
           /*await SQLiteWrapper().execute("DELETE FROM sync_data WHERE id = ?",
               params: [existingLogRow.id], dbName: dbName);
             */
 
-          // Se era una 'I' non inseriamo più nulla
+          // If it was an 'I' we don't insert anything more
           if (existingLogRow.operation == "I") return;
         }
-        // Inseriamo la D
+        // Insert the D for delete  
         await _insertLogRow(tableName, "D", rowguid, dbName: dbName);
         break;
       case Operation.insert:
         await _insertLogRow(tableName, "I", rowguid, dbName: dbName);
         break;
       case Operation.update:
-        // Verifichiamo se abbiamo una riga preesistente
+        // Verify if there is an   existing log row
         SyncData? existingLogRow =
             await _existingLogRow(tableName, rowguid, null, dbName: dbName);
         if (existingLogRow != null) {
-          // Se la riga precedente era una I non facciamo nulla e non aggiorniamo la data
-          // altrimenti potrebbero crearsi problemi di precedenza, tanto è un nuovo inserimento...
+          // If the previous row was an I we do nothing and don't update the date
+          // otherwise we could create precedence problems, it's a new insert anyway...
           if (existingLogRow.operation == "I") return;
-          // Cancelliamo la riga nel caso fosse una U e la reinseriamo
+          // Delete the row in case it was a U and insert it again
           await _deleteSyncDataRow(existingLogRow, dbName);
-          /*await SQLiteWrapper().execute(
-              "DELETE FROM ${sync_data_db.SyncData.tableName} WHERE id = ?",
-              params: [existingLogRow.id],
-              dbName: dbName);
-              */
+
         }
         await _insertLogRow(tableName, "U", rowguid, dbName: dbName);
         break;
@@ -115,7 +112,7 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
     return res;
   }
 
-  // Perform an INSERT or an UPDATE depending on the record state (UPSERT)
+  /// Perform an INSERT or an UPDATE depending on the record state (UPSERT)
   @override
   Future<int> save(Map<String, dynamic> map, String table,
       {List<String>? keys,
@@ -129,6 +126,7 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
     return res;
   }
 
+  /// Update a row in the passed table
   @override
   Future<int> update(Map<String, dynamic> map, String table,
       {required List<String> keys,
@@ -156,8 +154,8 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
     return res;
   }
 
-  ///////////////////////////////////
-
+  /// Check if the sync is configured
+  /// reading the sync_details table
   Future<bool> isSyncConfigured({required String dbName}) async {
     if (syncConfigured == SyncEnabled.unknown) {
       const sql = "SELECT count(*) as C FROM ${SyncDetails.tableName}";
@@ -177,7 +175,8 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
         dbName: dbName);
   }
 
-  /// Get the current SyncDetails  or null if sync is not yet configured
+  /// Get the current state of sync, returning true if there are local
+  /// unsyncronized rows that should be sent to the server  
   Future<bool> shouldSync({required String dbName}) async {
     return await super.query("SELECT COUNT(*) FROM ${SyncData.tableName}",
             singleResult: true,
@@ -187,12 +186,15 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
         0;
   }
 
+
+  /// Delete a sync data row
   Future<void> _deleteSyncDataRow(
       SyncData existingLogRow, String dbName) async {
     await super.delete(existingLogRow.toMap(), SyncData.tableName,
         keys: ["id"], dbName: dbName);
   }
 
+  /// Insert a new log row
   _insertLogRow(String tableName, String operation, String rowguid,
       {required String dbName}) async {
     final SyncData syncData = SyncData(
@@ -201,18 +203,6 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
         operation: operation,
         clientdate: DateTime.now().toUtc());
     await super.insert(syncData.toMap(), SyncData.tableName, dbName: dbName);
-    /*
-    const String sql =
-        "INSERT INTO sync_data (tablename, rowguid, operation, clientdate) VALUES (?, ?, ?, ?)";
-    await SQLiteWrapper().execute(sql,
-        params: [
-          tableName,
-          rowguid,
-          operation,
-          DateTime.now().toUtc().millisecondsSinceEpoch
-        ],
-        dbName: dbName);
-      */
   }
 
   /// Return the name of the guid column in the table
@@ -221,6 +211,7 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
     return tableInfos[tableName]?.keyField ?? "rowguid";
   }
 
+  /// Return the existing log row if it exists  
   Future<SyncData?> _existingLogRow(
       String tableName, String rowguid, String? operationFilter,
       {required String dbName}) async {
@@ -236,17 +227,7 @@ class SQLiteWrapperSync extends SQLiteWrapperCore {
         dbName: dbName);
   }
 
-/*
-  Future<void> _insertInitialSyncData(
-      String tablename, String keyfield, DateTime now,
-      {String dbName = mainDBName}) async {
-    await SQLiteWrapper().execute(
-        """INSERT INTO sync_data (tablename, rowguid, operation, clientdate)
-                    SELECT '$tablename', $keyfield, 'I', ? FROM ${tablename}_sync LEFT JOIN sync_data on sync_data.rowguid=$keyfield WHERE sync_data.rowguid is null""",
-        params: [now.millisecondsSinceEpoch], dbName: dbName);
-  }
-  */
-
+  /// Generate a new UUID
   String newUUID() {
     return _uuid.v4();
   }
