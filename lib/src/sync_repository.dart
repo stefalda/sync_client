@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -19,6 +20,9 @@ class SyncRepository {
   final String realm;
   late AuthenticationHelper authenticationHelper;
   bool debug = true;
+  final _syncController = StreamController<SyncProgress>.broadcast();
+  Stream<SyncProgress> get syncProgress => _syncController.stream;
+
   //Constructor
   SyncRepository(
       {required this.sqliteWrapperSync,
@@ -147,7 +151,12 @@ class SyncRepository {
     late String clientId;
     bool syncing = false;
     try {
-      // Ottieni il clientid
+      _syncController.add(SyncProgress(
+        status: SyncStatus.starting,
+        message: 'Starting sync...',
+      ));
+
+      // Get the clientid
       var clientInfo = await _getSyncConfigDetails(dbName: dbName);
       if (clientInfo == null) {
         throw SyncException("You have to configure the Sync!",
@@ -157,38 +166,48 @@ class SyncRepository {
       int lastSync = clientInfo["lastsync"] ?? 0;
       syncing = true;
       _debugPrint("Get the changes list from the DB $dbName");
-      // Ottieni l'elenco delle modifiche da inviare
+      // Get the changes list to send
       List<SyncData> syncDataList = await _getDataToSync(dbName: dbName);
       for (var element in syncDataList) {
         _debugPrint(
             "Table: ${element.tablename} Operation: ${element.operation} Key: ${element.rowguid}");
       }
 
-      // Effettua il pull
+      // Perform the pull
       _debugPrint("PULL first");
       final clientDataList =
           await _pull(clientId, lastSync, syncDataList, dbName: dbName);
 
-      // Effettua il push dei dati superstiti
+      // Perform the push of the remaining data
       _debugPrint("Time to PUSH...");
       final SyncInfo syncInfo =
           await _push(clientId, lastSync, clientDataList, dbName: dbName);
 
-      /// Aggiorna le copertine
-      //  await _downloadCovers();
+      // Add a small delay before completing
+      await Future.delayed(const Duration(seconds: 1));
+
+      _syncController.add(SyncProgress(
+        status: SyncStatus.completed,
+        message: 'Sync completed successfully',
+      ));
 
       if (syncInfo.lastSync != null) {
-        // Cancella le righe in syncdata
+        // Delete rows from sync_data
         _debugPrint("Delete rows from sync_data");
         await SQLiteWrapper().execute("DELETE FROM sync_data", dbName: dbName);
 
-        // Aggiorna la data di ultimo aggiornamento
+        // Update the last update date
         _debugPrint("Update last update date");
         await SQLiteWrapper().execute("UPDATE sync_details SET lastSync = ?",
             params: [syncInfo.lastSync!.millisecondsSinceEpoch],
             dbName: dbName);
       }
     } catch (ex, stacktrace) {
+      _syncController.add(SyncProgress(
+        status: SyncStatus.error,
+        message: 'Sync failed',
+        error: ex.toString(),
+      ));
       if (ex is SyncException) {
         rethrow;
       }
@@ -270,11 +289,11 @@ class SyncRepository {
         dbName: dbName);
   }
 
-  /// Effettua la chiamata al pull
+  /// Perform the pull call
   Future<List<SyncData>> _pull(
       String clientId, int lastSync, List<SyncData> syncDataList,
       {required String dbName}) async {
-    // i rowData non servono nella pull, rimuvili
+    // The rowData are not needed in the pull, remove them
     try {
       final ClientChanges clientChanges = ClientChanges()
         ..clientId = clientId
@@ -290,16 +309,22 @@ class SyncRepository {
       api_sync_details.SyncDetails syncDetails =
           api_sync_details.SyncDetails.fromJson(result);
 
-      // Adesso rimuove da syncDataList le chiavi indicate dal server
+      _syncController.add(SyncProgress(
+          status: SyncStatus.pulling,
+          message: 'Remote changes: ${syncDataList.length}',
+          totalItems: syncDataList.length,
+          processedItems: 0));
+
+      // Now remove from syncDataList the keys indicated by the server
       for (var rowguid in syncDetails.outdatedRowsGuid!) {
         syncDataList.removeWhere((element) => element.rowguid == rowguid);
       }
       _debugPrint(
           "Pull Results: to be deleted from push ${syncDetails.outdatedRowsGuid!.length} - to update from the server ${syncDetails.data.length}");
 
-      // Inserisce dentro il DB le nuove righe inviate dal DB
+      // Insert into the DB the new rows sent by the server
       await _importServerData(syncDetails.data, dbName: dbName);
-      // Restituisce l'elenco dei syncData superstiti
+      // Return the remaining syncData
       return syncDataList;
     } on Exception catch (e) {
       debugPrint("Error during pull: ${e.toString()}");
@@ -307,7 +332,7 @@ class SyncRepository {
     }
   }
 
-  /// Effettua la chiamata al push
+  /// Perform the push call
   Future<SyncInfo> _push(
       String clientId, int lastSync, List<SyncData> syncDataList,
       {required String dbName}) async {
@@ -315,6 +340,11 @@ class SyncRepository {
       ..clientId = clientId
       ..lastSync = lastSync
       ..changes = syncDataList;
+
+    _syncController.add(SyncProgress(
+      status: SyncStatus.pushing,
+      message: 'Local changes to send: ${syncDataList.length}',
+    ));
 
     final json = jsonEncode(clientChanges.toMap(skipRowData: false));
     _debugPrint("PUSH ${syncDataList.length} rows");
@@ -359,6 +389,12 @@ class SyncRepository {
       {required String dbName}) async {
     // Prepara le info sulle tabelle da sincronizzare
     for (var i = 0; i < syncDataList.length; i++) {
+      _syncController.add(SyncProgress(
+          status: SyncStatus.pulling,
+          message: 'Importing remote data',
+          totalItems: syncDataList.length,
+          processedItems: i));
+
       final SyncData syncData = syncDataList.elementAt(i);
       final TableInfo tableInfo =
           sqliteWrapperSync.tableInfos[syncData.tablename]!;
@@ -463,6 +499,7 @@ class SyncRepository {
     }
   }
 
+  /// Get the data to sync from the client DB
   Future<List<SyncData>> _getDataToSync({required String dbName}) async {
     final List<SyncData> syncDataList = List.empty(growable: true);
     for (String tableName in sqliteWrapperSync.tableInfos.keys) {
@@ -475,7 +512,7 @@ class SyncRepository {
     return syncDataList;
   }
 
-  /// Compila le informazioni da inviare al server generandole nel caso del primo inserimento
+  /// Compile the information to send to the server generating the data for the first insert
   Future<List<SyncData>> _getSyncData(String tableName, String keyField,
       {required List<String> binaryFields,
       required List<String> encryptedFields,
@@ -618,5 +655,9 @@ class SyncRepository {
       nullFields[key] = null;
     }
     rowData.addAll(nullFields);
+  }
+
+  void dispose() {
+    _syncController.close();
   }
 }

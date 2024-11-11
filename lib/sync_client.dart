@@ -14,5 +14,6 @@ export 'src/http_helper.dart';
 export 'src/sqlite_wrapper/sqlite_wrapper.dart';
 export 'src/sqlite_wrapper_sync.dart';
 export 'src/sync_exception.dart';
+export 'src/sync_progress.dart';
 export 'src/sync_repository.dart';
 export 'src/table_info.dart';

@@ -15,3 +15,7 @@
 
 ## 1.2.2
 - Removed timeout from http calls
+
+## 1.2.3
+- Added sync progress
+    

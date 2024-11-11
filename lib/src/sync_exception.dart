@@ -11,6 +11,7 @@ enum SyncExceptionType {
   generic
 }
 
+/// Define a sync exception
 class SyncException implements Exception {
   final SyncExceptionType type;
   final String message;
