@@ -40,6 +40,7 @@ class SyncData {
 
   Map<String, dynamic> toMap() {
     final Map<String, dynamic> data = <String, dynamic>{};
+    data['id'] = id;
     data['operation'] = operation;
     data['rowguid'] = rowguid;
     data['tablename'] = tablename;
