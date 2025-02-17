@@ -164,6 +164,9 @@ class SyncRepository {
       }
       clientId = clientInfo["clientid"];
       int lastSync = clientInfo["lastsync"] ?? 0;
+      //FIXME - JUST FOR DEBUG
+      lastSync = 0;
+
       syncing = true;
       _debugPrint("Get the changes list from the DB $dbName");
       // Get the changes list to send
@@ -409,7 +412,7 @@ class SyncRepository {
         // PROVA SEMPRE PRIMA UN UPDATE, IN CASO DI FALLIMENTO PROCEDI CON UNA INSERT
         // RIMUOVI LA ROWGUID dai campi in modo da essere sicuro della posizione
         if (syncData.rowData == null) {
-          _debugPrint("No data...");
+          _debugPrint("No data for guid ${syncData.rowguid}...");
           break;
         }
         final rowData = Map<String, dynamic>.from(syncData.rowData!);

@@ -1,0 +1,18 @@
+{
+    "db": {
+        "realms": {
+            "default": "postgresql://postgres:postgress@db:5432/postgres"
+        }
+    },
+    "email": {
+        "from": "Nowhere",
+        "fromEmail": "nowhere@land.com",
+        "smtp": "smtp.server.com",
+        "port": "2587",
+        "username": "username",
+        "password": "password",
+        "apps": {
+            "default": "Sync Server Default App"
+        }
+    }
+}

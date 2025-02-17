@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:16.7-alpine3.21
+    user: postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgress
+      - POSTGRES_DB=postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 1s
+      timeout: 5s
+      retries: 10  
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./database_postgres_script.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./data:/var/lib/postgresql/data
+    
+  server:
+    image: sfalda/sync_server:latest
+    platform: linux/amd64
+    restart: always
+    container_name: sync-server
+    ports:
+      - '3000:3000'
+    depends_on:
+        db:
+          condition: service_healthy
+    volumes:
+      # the config.json file
+      - ./config.json:/app/dist/config.json
