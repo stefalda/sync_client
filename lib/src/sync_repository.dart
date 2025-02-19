@@ -12,10 +12,11 @@ import 'package:sync_client/src/api/models/sync_info.dart';
 import 'package:sync_client/src/api/models/user_registration.dart';
 import 'package:sync_client/src/authentication_helper.dart';
 import 'package:sync_client/src/debug_utils.dart';
-import 'package:sync_client/sync_client.dart';
+import 'package:sync_client/src/sqlite_wrapper_sync_mixin.dart';
+import 'package:sync_client/sync_client.dart' hide Operation;
 
 class SyncRepository {
-  final SQLiteWrapperSync sqliteWrapperSync;
+  final SQLiteWrapperSyncMixin sqliteWrapperSync;
   final String serverUrl;
   final String realm;
   late AuthenticationHelper authenticationHelper;
@@ -28,8 +29,10 @@ class SyncRepository {
       {required this.sqliteWrapperSync,
       required this.serverUrl,
       required this.realm}) {
-    authenticationHelper =
-        AuthenticationHelper(serverUrl: serverUrl, realm: realm);
+    authenticationHelper = AuthenticationHelper(
+        serverUrl: serverUrl,
+        realm: realm,
+        sqliteWrapperSync: sqliteWrapperSync);
   }
 
   /// Register the User and the Client
@@ -46,7 +49,7 @@ class SyncRepository {
           secretKey, // If "" the key will be generated automatically
       required String dbName}) async {
     const sql = "SELECT * FROM sync_details";
-    final rows = await SQLiteWrapper().query(sql, dbName: dbName);
+    final rows = await sqliteWrapperSync.query(sql, dbName: dbName);
     if (rows.isNotEmpty) {
       throw SyncException("A sync configuration is already present",
           type: SyncExceptionType.syncConfigurationAlreadyPresent);
@@ -133,9 +136,9 @@ class SyncRepository {
   /// Reset the table data for account and sync data
   Future<void> resetDB({required String dbName}) async {
     // DELETE LOGGED DATA
-    await SQLiteWrapper().execute("DELETE FROM sync_data", dbName: dbName);
+    await sqliteWrapperSync.execute("DELETE FROM sync_data", dbName: dbName);
     // DELETE SYNC DETAIL
-    await SQLiteWrapper().execute("DELETE FROM sync_details", dbName: dbName);
+    await sqliteWrapperSync.execute("DELETE FROM sync_details", dbName: dbName);
     // DELETE THE SECRET KEY
     await SQLiteWrapper()
         .execute("DELETE FROM sync_encryption", dbName: dbName);
@@ -197,11 +200,12 @@ class SyncRepository {
       if (syncInfo.lastSync != null) {
         // Delete rows from sync_data
         _debugPrint("Delete rows from sync_data");
-        await SQLiteWrapper().execute("DELETE FROM sync_data", dbName: dbName);
+        await sqliteWrapperSync.execute("DELETE FROM sync_data",
+            dbName: dbName);
 
         // Update the last update date
         _debugPrint("Update last update date");
-        await SQLiteWrapper().execute("UPDATE sync_details SET lastSync = ?",
+        await sqliteWrapperSync.execute("UPDATE sync_details SET lastSync = ?",
             params: [syncInfo.lastSync!.millisecondsSinceEpoch],
             dbName: dbName);
       }
@@ -278,14 +282,14 @@ class SyncRepository {
 
   /// Reset syncDetails usually when both tokens are invalid
   Future<void> deleteSyncDetails({required String dbName}) async {
-    await SQLiteWrapper().execute(
+    await sqliteWrapperSync.execute(
         "DELETE FROM sync_details;DELETE FROM sync_encryption;",
         dbName: dbName);
   }
 
   /// Get the current SyncDetails  or null if sync is not yet configured
   Future<SyncDetails?> getSyncDetails({required String dbName}) async {
-    return await SQLiteWrapper().query("SELECT * FROM sync_details",
+    return await sqliteWrapperSync.query("SELECT * FROM sync_details",
         singleResult: true,
         params: [],
         fromMap: SyncDetails.fromDB,
@@ -404,7 +408,7 @@ class SyncRepository {
       if (syncData.operation == "D") {
         final sql =
             "DELETE from ${syncData.tablename} WHERE ${tableInfo.keyField} = ?";
-        await SQLiteWrapper().execute(sql,
+        await sqliteWrapperSync.execute(sql,
             params: [syncData.rowguid],
             dbName: dbName,
             tables: [syncData.tablename!]);
@@ -480,7 +484,7 @@ class SyncRepository {
               SET
               ${rowData.keys.toList().join(" = ?,")} = ? 
               WHERE ${tableInfo.keyField} = ?""";
-        final updated = await SQLiteWrapper().execute(sql,
+        final updated = await sqliteWrapperSync.execute(sql,
             params: values, dbName: dbName, tables: [syncData.tablename!]);
         if (updated == 0) {
           //INSERT
@@ -495,7 +499,7 @@ class SyncRepository {
           _debugPrint(
               "Processing rowguid - ${syncData.rowguid} - table: ${syncData.tablename} operation:  ${syncData.operation}");
 
-          await await SQLiteWrapper().execute(sql,
+          await await sqliteWrapperSync.execute(sql,
               params: values, dbName: dbName, tables: [syncData.tablename!]);
         }
       }
@@ -529,7 +533,7 @@ class SyncRepository {
             )
          """;
     List<SyncData> data = List.empty(growable: true);
-    final rows = await SQLiteWrapper().query(sql, dbName: dbName);
+    final rows = await sqliteWrapperSync.query(sql, dbName: dbName);
     for (Map<String, dynamic> row in rows) {
       SyncData syncData = SyncData();
       syncData.rowguid = row["_guid"] as String;
@@ -582,7 +586,7 @@ class SyncRepository {
       {required String dbName}) async {
     const sqlUpdate =
         "INSERT INTO sync_details (name, clientid, useremail, userpassword) values (?,?,?,?)";
-    await SQLiteWrapper().execute(sqlUpdate,
+    await sqliteWrapperSync.execute(sqlUpdate,
         params: [name, clientId, email, password], dbName: dbName);
   }
 
@@ -590,7 +594,7 @@ class SyncRepository {
   _getSyncConfigDetails({required String dbName}) async {
     const sql = "SELECT clientid, lastsync FROM sync_details";
     final row =
-        await SQLiteWrapper().query(sql, singleResult: true, dbName: dbName);
+        await sqliteWrapperSync.query(sql, singleResult: true, dbName: dbName);
     if (row == null) {
       return null;
     }
@@ -611,7 +615,7 @@ class SyncRepository {
       //      "SELECT ${tableInfo.externalKeys.map((e) => e.fieldName).join(", ")} FROM $tableName";
       //}
       List<String> rowguids =
-          List<String>.from(await SQLiteWrapper().query(sql, dbName: dbName));
+          List<String>.from(await sqliteWrapperSync.query(sql, dbName: dbName));
       for (String rowguid in rowguids) {
         sqliteWrapperSync.logOperation(tableName, Operation.insert, rowguid,
             dbName: dbName, force: true);
@@ -635,7 +639,7 @@ class SyncRepository {
                     WHERE m.name=?
                     order by columnName""";
     final List<String> results = List.from(
-        await SQLiteWrapper().query(sql, params: [table], dbName: dbName));
+        await sqliteWrapperSync.query(sql, params: [table], dbName: dbName));
     return results;
   }
 

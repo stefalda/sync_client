@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:sqlite_wrapper_sync_sample/database_helper.dart';
+import 'package:inject_x/inject_x.dart';
+import 'package:sqlite_wrapper_sync_sample/database_service.dart';
 import 'package:sqlite_wrapper_sync_sample/todo_list.dart';
 
 const dbName1 = "primaryDB";
 const dbName2 = "secondaryDB";
+const grpcName = "grpcDB";
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Init the DB
-  await DatabaseHelper().initDB(dbName: dbName1);
-  await DatabaseHelper().initDB(dbName: dbName2);
+  final DatabaseService databaseService = InjectX.add(DatabaseService());
+  await databaseService.initDB(dbName: dbName1, useGRPC: false);
+  await databaseService.initDB(dbName: dbName2);
+  await databaseService.initDB(dbName: grpcName, useGRPC: true);
+
   runApp(const MyApp());
 }
 
@@ -36,6 +41,7 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final databaseService = inject<DatabaseService>();
     return Scaffold(
       appBar: AppBar(
         // Here we take the value from the MyHomePage object that was created by
@@ -46,7 +52,7 @@ class HomePage extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const Expanded(
+          Expanded(
             child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -54,6 +60,7 @@ class HomePage extends StatelessWidget {
                     dbName: dbName1,
                   ),
                   TodoList(dbName: dbName2),
+                  TodoList(dbName: grpcName),
                 ]),
           ),
 
@@ -62,11 +69,8 @@ class HomePage extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               TextButton(
-                  onPressed: () => DatabaseHelper().register(dbName1, dbName2),
+                  onPressed: () => databaseService.register(dbName1, dbName2),
                   child: const Text("Register")),
-              TextButton(
-                  onPressed: () => DatabaseHelper().sync(dbName1, dbName2),
-                  child: const Text("Sync"))
             ],
           )
         ],

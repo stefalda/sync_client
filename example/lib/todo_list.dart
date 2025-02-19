@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:sqlite_wrapper_sync_sample/database_helper.dart';
+import 'package:inject_x/inject_x.dart';
+import 'package:sqlite_wrapper_sync_sample/database_service.dart';
 import 'package:sqlite_wrapper_sync_sample/instructions.dart';
 import 'package:sqlite_wrapper_sync_sample/models.dart';
 import 'package:sqlite_wrapper_sync_sample/todo_item.dart';
 
 class TodoList extends StatelessWidget {
-  const TodoList({required this.dbName, super.key});
+  TodoList({required this.dbName, super.key});
   final String dbName;
+  final databaseService = inject<DatabaseService>();
 
   void _addNewTodo() {
-    DatabaseHelper().addNewTodo("NEW TODO", dbName: dbName);
+    databaseService.addNewTodo("NEW TODO", dbName: dbName);
     return;
   }
 
@@ -19,9 +21,13 @@ class TodoList extends StatelessWidget {
       width: 400,
       child: Column(
         children: [
+          Text(
+            dbName,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
           // To-do - COUNT
           StreamBuilder(
-            stream: DatabaseHelper().getTodoCount(dbName: dbName),
+            stream: databaseService.getTodoCount(dbName: dbName),
             initialData: const [],
             builder: (BuildContext context, AsyncSnapshot snapshot) {
               return Container(
@@ -33,7 +39,7 @@ class TodoList extends StatelessWidget {
           ),
           // Todos
           StreamBuilder(
-            stream: DatabaseHelper().getTodos(dbName: dbName),
+            stream: databaseService.getTodos(dbName: dbName),
             initialData: const [],
             builder: (BuildContext context, AsyncSnapshot snapshot) {
               if (!snapshot.hasData) {
@@ -63,6 +69,12 @@ class TodoList extends StatelessWidget {
           TextButton(
               onPressed: () => _addNewTodo(),
               child: const Text("Add new Todo")),
+          TextButton(
+              onPressed: () => databaseService.configureSync(dbName: dbName),
+              child: const Text("Configure")),
+          TextButton(
+              onPressed: () => databaseService.sync(dbName: dbName),
+              child: const Text("Sync")),
           const Instructions()
         ],
       ),

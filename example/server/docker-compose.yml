@@ -30,3 +30,24 @@ services:
     volumes:
       # the config.json file
       - ./config.json:/app/dist/config.json
+  
+  sqlitewrapperserver:
+    image: sfalda/sqlite_wrapper_server:latest #download official image
+    platform: linux/amd64
+    ports:
+        - "50051"
+    volumes:
+        - ./data-grpc:/data
+    environment:
+        SECRET_KEY: "41666b6b-c045-4cc2-aa09-67ba0cb8d55c"
+        UNAUTHENTICATED: true
+        SHARED_DB: true
+
+  envoy:
+    image: envoyproxy/envoy:v1.33-latest
+    volumes:
+        - ./envoy.yaml:/etc/envoy/envoy.yaml
+    ports:
+        - "50052:50052"
+            
+

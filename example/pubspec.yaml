@@ -34,6 +34,7 @@ dependencies:
     path: ./../
   sqflite_common_ffi_web: ^0.4.5+2 # dart run sqflite_common_ffi_web:setup --force
   path: ^1.9.0
+  inject_x: ^0.0.3
 
 dev_dependencies:
   flutter_test:

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqlite_wrapper_sync_sample/database_helper.dart';
+import 'package:inject_x/inject_x.dart';
+import 'package:sqlite_wrapper_sync_sample/database_service.dart';
 import 'package:sqlite_wrapper_sync_sample/models.dart';
 import 'package:sync_client/sync_client.dart';
 
@@ -8,11 +9,12 @@ const serverUrl = "http://localhost:3000";
 
 const mainDBName = "database1";
 const secondaryDBName = "database2";
-
+late DatabaseService databaseService;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await DatabaseHelper().initDB(test: true, dbName: mainDBName);
-  await DatabaseHelper().initDB(test: true, dbName: secondaryDBName);
+  databaseService = InjectX.add(DatabaseService());
+  await databaseService.initDB(test: true, dbName: mainDBName);
+  await databaseService.initDB(test: true, dbName: secondaryDBName);
 
   String? rowGuid1;
 
@@ -20,7 +22,7 @@ void main() async {
 
   final syncRepository = SyncRepository(
       serverUrl: serverUrl,
-      sqliteWrapperSync: DatabaseHelper().sqLiteWrapperSync,
+      sqliteWrapperSync: databaseService.sqLiteWrapperSync,
       realm: "TODO_TEST");
 
   test("Register a new user", () async {
@@ -48,19 +50,19 @@ void main() async {
     await syncRepository.sync(dbName: mainDBName);
     await syncRepository.sync(dbName: secondaryDBName);
     // Insert some data
-    rowGuid1 = await DatabaseHelper()
-        .addNewTodo("CLIENT 1 - PRIMO", dbName: mainDBName);
-    await DatabaseHelper().addNewTodo("CLIENT 1 - SECONDO", dbName: mainDBName);
-    rowGuid2 = await DatabaseHelper()
-        .addNewTodo("CLIENT 2 - PRIMO", dbName: secondaryDBName);
-    await DatabaseHelper()
-        .addNewTodo("CLIENT 2 - SECONDO", dbName: secondaryDBName);
+    rowGuid1 = await databaseService.addNewTodo("CLIENT 1 - PRIMO",
+        dbName: mainDBName);
+    await databaseService.addNewTodo("CLIENT 1 - SECONDO", dbName: mainDBName);
+    rowGuid2 = await databaseService.addNewTodo("CLIENT 2 - PRIMO",
+        dbName: secondaryDBName);
+    await databaseService.addNewTodo("CLIENT 2 - SECONDO",
+        dbName: secondaryDBName);
 
     // Perform a sync
     await syncRepository.sync(dbName: mainDBName);
     await syncRepository.sync(dbName: secondaryDBName);
 
-    int count = await DatabaseHelper().sqLiteWrapperSync.query(
+    int count = await databaseService.sqLiteWrapperSync.query(
         "SELECT COUNT(*) FROM ${Todo.table}",
         singleResult: true,
         dbName: secondaryDBName);
@@ -70,8 +72,8 @@ void main() async {
   test("DELETE A record and sync", () async {
     // DELETE A todo from second
     Todo? todo =
-        await DatabaseHelper().getTodo(rowGuid1!, dbName: secondaryDBName);
-    await DatabaseHelper().deleteTodo(todo!, dbName: secondaryDBName);
+        await databaseService.getTodo(rowGuid1!, dbName: secondaryDBName);
+    await databaseService.deleteTodo(todo!, dbName: secondaryDBName);
 
     // SYNC 2
     await syncRepository.sync(dbName: secondaryDBName);
@@ -80,7 +82,7 @@ void main() async {
     await syncRepository.sync(dbName: mainDBName);
 
     // Expect 3 todo on 1
-    int count = await DatabaseHelper().sqLiteWrapperSync.query(
+    int count = await databaseService.sqLiteWrapperSync.query(
         "SELECT COUNT(*) FROM ${Todo.table}",
         singleResult: true,
         dbName: mainDBName);
@@ -88,30 +90,30 @@ void main() async {
   });
 
   test("Modify a record and sync", () async {
-    Todo? todo = await DatabaseHelper()
-        .getTodoByTitle("CLIENT 2 - PRIMO", dbName: mainDBName);
+    Todo? todo = await databaseService.getTodoByTitle("CLIENT 2 - PRIMO",
+        dbName: mainDBName);
     todo!.title = "${todo.title} MODIFICATO SUL CLIENT 1";
-    await DatabaseHelper().saveTodo(todo, dbName: mainDBName);
+    await databaseService.saveTodo(todo, dbName: mainDBName);
     // SYNC 1
     await syncRepository.sync(dbName: mainDBName);
     // SYNC 2
     await syncRepository.sync(dbName: secondaryDBName);
 
     Todo? todo2 =
-        await DatabaseHelper().getTodo(rowGuid2!, dbName: secondaryDBName);
+        await databaseService.getTodo(rowGuid2!, dbName: secondaryDBName);
 
     expect(todo2!.title, "CLIENT 2 - PRIMO MODIFICATO SUL CLIENT 1");
   });
 
   test("Modify the same record on both client, only last should win", () async {
     Todo? todo =
-        await DatabaseHelper().getTodo(rowGuid2!, dbName: secondaryDBName);
+        await databaseService.getTodo(rowGuid2!, dbName: secondaryDBName);
     todo!.title = "CLIENT 2 - PRIMO RIMODIFICATO SUL CLIENT 2";
-    await DatabaseHelper().saveTodo(todo, dbName: secondaryDBName);
+    await databaseService.saveTodo(todo, dbName: secondaryDBName);
 
-    todo = await DatabaseHelper().getTodo(rowGuid2!, dbName: mainDBName);
+    todo = await databaseService.getTodo(rowGuid2!, dbName: mainDBName);
     todo!.title = "CLIENT 2 - PRIMO RIMODIFICATO SUL CLIENT 1";
-    await DatabaseHelper().saveTodo(todo, dbName: mainDBName);
+    await databaseService.saveTodo(todo, dbName: mainDBName);
 
     // SYNC 1
     await syncRepository.sync(dbName: mainDBName);
@@ -121,40 +123,40 @@ void main() async {
     await syncRepository.sync(dbName: mainDBName);
 
     Todo? todo2 =
-        await DatabaseHelper().getTodo(rowGuid2!, dbName: secondaryDBName);
+        await databaseService.getTodo(rowGuid2!, dbName: secondaryDBName);
 
     expect(todo2!.title, "CLIENT 2 - PRIMO RIMODIFICATO SUL CLIENT 1");
 
-    todo2 = await DatabaseHelper().getTodo(rowGuid2!, dbName: mainDBName);
+    todo2 = await databaseService.getTodo(rowGuid2!, dbName: mainDBName);
 
     expect(todo2!.title, "CLIENT 2 - PRIMO RIMODIFICATO SUL CLIENT 1");
   });
 
   test("DELETE A record on a client, modify it on another and sync", () async {
     // DELETE A todo from second
-    Todo? todo = await DatabaseHelper()
-        .getTodoByTitle("CLIENT 2 - SECONDO", dbName: secondaryDBName);
-    await DatabaseHelper().deleteTodo(todo!, dbName: secondaryDBName);
+    Todo? todo = await databaseService.getTodoByTitle("CLIENT 2 - SECONDO",
+        dbName: secondaryDBName);
+    await databaseService.deleteTodo(todo!, dbName: secondaryDBName);
 
     // SYNC 2
     await syncRepository.sync(dbName: secondaryDBName);
 
-    Todo? todoRimosso = await DatabaseHelper()
+    Todo? todoRimosso = await databaseService
         .getTodoByTitle("CLIENT 2 - SECONDO", dbName: secondaryDBName);
 
     expect(todoRimosso, isNull);
 
-    todo = await DatabaseHelper()
-        .getTodoByTitle("CLIENT 2 - SECONDO", dbName: mainDBName);
+    todo = await databaseService.getTodoByTitle("CLIENT 2 - SECONDO",
+        dbName: mainDBName);
     todo!.title = "CLIENT 2 - SECONDO - MODIFICATO DOPO CANCELLAZIONE";
-    await DatabaseHelper().saveTodo(todo, dbName: mainDBName);
+    await databaseService.saveTodo(todo, dbName: mainDBName);
 
     // SYNC 1
     await syncRepository.sync(dbName: mainDBName);
     // SYNC 2
     await syncRepository.sync(dbName: secondaryDBName);
 
-    Todo? todoRipristinato = await DatabaseHelper().getTodoByTitle(
+    Todo? todoRipristinato = await databaseService.getTodoByTitle(
         "CLIENT 2 - SECONDO - MODIFICATO DOPO CANCELLAZIONE",
         dbName: secondaryDBName);
     expect(todoRipristinato, isNotNull);
