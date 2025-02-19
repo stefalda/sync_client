@@ -7,8 +7,12 @@ name: Dart
 
 on:
   push:
+    branches:
+      - '**'
+    tags-ignore:
+      - '**'
   pull_request:
-    branches: ["master"]
+    branches: [ "master" ]
 
 jobs:
   build:
