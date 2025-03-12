@@ -158,6 +158,7 @@ class SyncRepository {
         status: SyncStatus.starting,
         message: 'Starting sync...',
       ));
+      await Future(() {}); // Update UI
 
       // Get the clientid
       var clientInfo = await _getSyncConfigDetails(dbName: dbName);
@@ -168,16 +169,16 @@ class SyncRepository {
       clientId = clientInfo["clientid"];
       int lastSync = clientInfo["lastsync"] ?? 0;
       //FIXME - JUST FOR DEBUG
-      lastSync = 0;
+      //lastSync = 0;
 
       syncing = true;
       _debugPrint("Get the changes list from the DB $dbName");
       // Get the changes list to send
       List<SyncData> syncDataList = await _getDataToSync(dbName: dbName);
-      for (var element in syncDataList) {
-        _debugPrint(
-            "Table: ${element.tablename} Operation: ${element.operation} Key: ${element.rowguid}");
-      }
+      // for (var element in syncDataList) {
+      //   _debugPrint(
+      //       "Table: ${element.tablename} Operation: ${element.operation} Key: ${element.rowguid}");
+      // }
 
       // Perform the pull
       _debugPrint("PULL first");
@@ -196,6 +197,7 @@ class SyncRepository {
         status: SyncStatus.completed,
         message: 'Sync completed successfully',
       ));
+      await Future(() {}); // Update UI
 
       if (syncInfo.lastSync != null) {
         // Delete rows from sync_data
@@ -215,6 +217,8 @@ class SyncRepository {
         message: 'Sync failed',
         error: ex.toString(),
       ));
+      await Future(() {}); // Update UI
+
       if (ex is SyncException) {
         rethrow;
       }
@@ -310,8 +314,8 @@ class SyncRepository {
       final json = jsonEncode(clientChanges.toMap(skipRowData: true));
       // This call unexptectly returns even if it's awaited
       dynamic result = await authenticationHelper.authenticatedCall(
-          "$serverUrl/pull/$realm", {},
-          body: json, method: "POST", dbName: dbName);
+          "$serverUrl/pull/$realm/$clientId", {},
+          body: json, method: "POST", dbName: dbName, isPushOrPull: true);
 
       api_sync_details.SyncDetails syncDetails =
           api_sync_details.SyncDetails.fromJson(result);
@@ -321,6 +325,7 @@ class SyncRepository {
           message: 'Remote changes: ${syncDataList.length}',
           totalItems: syncDataList.length,
           processedItems: 0));
+      await Future(() {}); // Update UI
 
       // Now remove from syncDataList the keys indicated by the server
       for (var rowguid in syncDetails.outdatedRowsGuid!) {
@@ -352,12 +357,13 @@ class SyncRepository {
       status: SyncStatus.pushing,
       message: 'Local changes to send: ${syncDataList.length}',
     ));
+    await Future(() {}); // Update UI
 
     final json = jsonEncode(clientChanges.toMap(skipRowData: false));
     _debugPrint("PUSH ${syncDataList.length} rows");
     dynamic result = await authenticationHelper.authenticatedCall(
-        "$serverUrl/push/$realm", {},
-        body: json, method: "POST", dbName: dbName);
+        "$serverUrl/push/$realm/$clientId", {},
+        body: json, method: "POST", dbName: dbName, isPushOrPull: true);
     SyncInfo syncInfo = SyncInfo.fromJson(result);
 
     return syncInfo;
@@ -401,7 +407,7 @@ class SyncRepository {
           message: 'Importing remote data',
           totalItems: syncDataList.length,
           processedItems: i));
-
+      await Future(() {}); // Update UI
       final SyncData syncData = syncDataList.elementAt(i);
       final TableInfo tableInfo =
           sqliteWrapperSync.tableInfos[syncData.tablename]!;

@@ -6,6 +6,9 @@ import 'package:dio/dio.dart';
 import 'package:sync_client/src/debug_utils.dart';
 import 'package:sync_client/sync_client.dart';
 
+const kMaxRetries = 5;
+const kChunkSize = 10000;
+
 final dio = Dio(
   BaseOptions(
       // connectTimeout: const Duration(seconds: 3),
@@ -29,7 +32,8 @@ class HttpHelper {
   Future<dynamic> call(String url, Map<String, String?>? params,
       {String? method,
       Object? body,
-      Map<String, String> additionalHeaders = const {}}) async {
+      Map<String, String> additionalHeaders = const {},
+      isPushOrPull = false}) async {
     try {
       //DioAdapterInterface().initAdapter(dio);
 
@@ -39,15 +43,28 @@ class HttpHelper {
       headers.addAll(additionalHeaders);
       // print(body);
       dynamic response;
-      switch (method) {
-        case "POST":
-          final data = jsonDecode(body as String);
-          final options = Options(headers: headers);
-          // This call make the first future to be exited, don't know why...
-          response = await dio.post(url, data: data, options: options);
-          break;
-        default:
-          response = await dio.get(url, options: Options(headers: headers));
+      // Se sta facendo la GET per sapere se ci sono chunk sospesi non passar
+      if (isPushOrPull && method == 'POST') {
+        // Upload JSON Chuncked instead of pushing or pulling everything
+        // final data = jsonEncode(body);
+        //jsonDecode(body as String);
+        response = await uploadJsonChunked(
+            url: url,
+            jsonString: body as String,
+            chunkSize: kChunkSize,
+            maxRetries: kMaxRetries,
+            headers: headers);
+      } else {
+        switch (method) {
+          case "POST":
+            final data = jsonDecode(body as String);
+            final options = Options(headers: headers);
+            // This call make the first future to be exited, don't know why...
+            response = await dio.post(url, data: data, options: options);
+            break;
+          default:
+            response = await dio.get(url, options: Options(headers: headers));
+        }
       }
       if (response.statusCode == 200) {
         // If the server did return a 200 OK response,
@@ -98,6 +115,76 @@ class HttpHelper {
       //debugPrint(e.toString());
       rethrow;
     }
+  }
+
+  Future<Response> uploadJsonChunked(
+      {required String url,
+      required String jsonString,
+      required int chunkSize,
+      required int maxRetries,
+      required Map<String, String> headers}) async {
+    int totalSize = jsonString.length;
+    int chunkIndex = 0;
+    int retries = 0;
+    dynamic finalResponse;
+    // Let's KISS
+    // Recupera l'ultimo chunk ricevuto dal server
+    // try {
+    //   Response resumeResponse =
+    //       await dio.get(url, options: Options(headers: headers));
+    //   if (resumeResponse.statusCode == 200) {
+    //     chunkIndex = resumeResponse.data['lastChunk'];
+    //     print("🔄 Riprendendo l'upload dal chunk: $chunkIndex");
+    //   }
+    // } catch (e) {
+    //   print("⚠️ Non è stato possibile recuperare lo stato dell'upload: $e");
+    // }
+
+    while (chunkIndex * chunkSize < totalSize) {
+      // Calcola il chunk da inviare
+      int start = chunkIndex * chunkSize;
+      int end = (start + chunkSize > totalSize) ? totalSize : start + chunkSize;
+      String chunkData = jsonString.substring(start, end);
+      int chunks = (totalSize / chunkSize).ceil();
+      while (retries < maxRetries) {
+        debugPrint("Sending $chunkIndex with ${chunkData.length} data");
+        try {
+          var response = await dio.post(
+            url,
+            data: jsonEncode({
+              "chunkIndex": chunkIndex,
+              "chunks": chunks,
+              "data": chunkData,
+              "start": start,
+              "end": end
+            }),
+            options: Options(headers: headers),
+          );
+
+          if (response.statusCode == 200) {
+            debugPrint("✅ Chunk $chunkIndex inviato con successo.");
+            finalResponse = response; // Salva la response dell'ultimo chunk
+            chunkIndex++;
+            retries = 0;
+            break;
+          }
+        } catch (e) {
+          retries++;
+          debugPrint(
+              "⚠️ Tentativo $retries per il chunk $chunkIndex fallito: $e");
+          await Future.delayed(
+              Duration(seconds: 2 * retries)); // Backoff esponenziale
+        }
+      }
+
+      if (retries >= maxRetries) {
+        debugPrint("❌ Upload fallito dopo $maxRetries tentativi.");
+        throw {"Upload fallito dopo $maxRetries tentativi"};
+      }
+    }
+
+    debugPrint("✅ Upload JSON completato.");
+    return finalResponse; // Ritorna la risposta del server dopo l'ultimo chunk
   }
 
   /// Return the Simple Authentication header

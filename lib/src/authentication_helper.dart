@@ -23,12 +23,14 @@ class AuthenticationHelper {
       {String? method = "GET",
       Object? body,
       lastCall = false,
-      required String dbName}) async {
+      required String dbName,
+      isPushOrPull = false}) async {
     final token = await _getToken(dbName: dbName);
     try {
       return await httpHelper.call(url, params,
           body: body,
           method: method,
+          isPushOrPull: isPushOrPull,
           additionalHeaders:
               HttpHelper.bearerAuthenticationHeader(token: token!));
     } on UnauthorizedException {
@@ -120,11 +122,11 @@ class AuthenticationHelper {
   Future<SyncDetails> _updateSyncDetailsFromTokenData(
       SyncDetails syncDetails, Map<String, dynamic> tokenData,
       {required String dbName}) async {
-    syncDetails.accessToken = tokenData['access_token'];
-    syncDetails.refreshToken = tokenData['refresh_token'];
-    syncDetails.accessTokenExpiration = DateTime.fromMillisecondsSinceEpoch(
-        tokenData['expires_on'],
-        isUtc: true);
+    syncDetails.accessToken = tokenData['accessToken'];
+    syncDetails.refreshToken = tokenData['refreshToken'];
+    // syncDetails.accessTokenExpiration = DateTime.fromMillisecondsSinceEpoch(
+    //     tokenData['expires_on'],
+    //     isUtc: true);
     await sqliteWrapperSync.save(syncDetails.toMap(), SyncDetails.tableName,
         dbName: dbName, keys: ['clientid']);
     return syncDetails;
