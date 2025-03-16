@@ -15,14 +15,18 @@ import 'package:sync_client/src/debug_utils.dart';
 import 'package:sync_client/src/sqlite_wrapper_sync_mixin.dart';
 import 'package:sync_client/sync_client.dart' hide Operation;
 
+typedef SyncController = StreamController<SyncProgress>;
+const kMaxDataToSendAtOnce = 100;
+
 class SyncRepository {
   final SQLiteWrapperSyncMixin sqliteWrapperSync;
   final String serverUrl;
   final String realm;
   late AuthenticationHelper authenticationHelper;
   bool debug = true;
-  final _syncController = StreamController<SyncProgress>.broadcast();
-  Stream<SyncProgress> get syncProgress => _syncController.stream;
+  final SyncController syncController =
+      StreamController<SyncProgress>.broadcast();
+  Stream<SyncProgress> get syncProgress => syncController.stream;
 
   //Constructor
   SyncRepository(
@@ -129,7 +133,10 @@ class SyncRepository {
     // dynamic result =
     await authenticationHelper.authenticatedCall(
         "$serverUrl/unregister/$realm", {},
-        body: json, method: "POST", dbName: dbName);
+        body: json,
+        method: "POST",
+        dbName: dbName,
+        syncController: syncController);
     await resetDB(dbName: dbName);
   }
 
@@ -154,7 +161,7 @@ class SyncRepository {
     late String clientId;
     bool syncing = false;
     try {
-      _syncController.add(SyncProgress(
+      syncController.add(SyncProgress(
         status: SyncStatus.starting,
         message: 'Starting sync...',
       ));
@@ -185,15 +192,46 @@ class SyncRepository {
       final clientDataList =
           await _pull(clientId, lastSync, syncDataList, dbName: dbName);
 
+      // Do multiple push with partial data to avoid sending too many data at once
+
       // Perform the push of the remaining data
       _debugPrint("Time to PUSH...");
-      final SyncInfo syncInfo =
-          await _push(clientId, lastSync, clientDataList, dbName: dbName);
+      late SyncInfo syncInfo;
+      // Not too much data... send everything
+      if (clientDataList.length < kMaxDataToSendAtOnce) {
+        // Send all at once
+        syncInfo = await _push(clientId, lastSync, clientDataList,
+            dbName: dbName, isPartial: false);
+      } else {
+        int from = 0;
+
+        while (from < clientDataList.length) {
+          int to = from + kMaxDataToSendAtOnce;
+          if (to > clientDataList.length) {
+            to = clientDataList.length;
+          }
+          //Sub
+          final subDataList = clientDataList.sublist(from, to);
+          syncInfo = await _push(clientId, lastSync, subDataList,
+              dbName: dbName, isPartial: (to < clientDataList.length));
+          // UPDATE THE STATUS
+          syncController.add(SyncProgress(
+            status: SyncStatus.pushing,
+            message: 'Sent $from/${clientDataList.length}',
+            processedItems: from,
+            totalItems: clientDataList.length,
+          ));
+          await Future(() {}); // Update UI
+          print("Pushing $from/${clientDataList.length}");
+          from = to;
+          //TODO - DELETE ONLY PUSHED DATA
+        }
+      }
 
       // Add a small delay before completing
       await Future.delayed(const Duration(seconds: 1));
 
-      _syncController.add(SyncProgress(
+      syncController.add(SyncProgress(
         status: SyncStatus.completed,
         message: 'Sync completed successfully',
       ));
@@ -212,7 +250,7 @@ class SyncRepository {
             dbName: dbName);
       }
     } catch (ex, stacktrace) {
-      _syncController.add(SyncProgress(
+      syncController.add(SyncProgress(
         status: SyncStatus.error,
         message: 'Sync failed',
         error: ex.toString(),
@@ -315,12 +353,16 @@ class SyncRepository {
       // This call unexptectly returns even if it's awaited
       dynamic result = await authenticationHelper.authenticatedCall(
           "$serverUrl/pull/$realm/$clientId", {},
-          body: json, method: "POST", dbName: dbName, isPushOrPull: true);
+          body: json,
+          method: "POST",
+          dbName: dbName,
+          isPushOrPull: true,
+          syncController: syncController);
 
       api_sync_details.SyncDetails syncDetails =
           api_sync_details.SyncDetails.fromJson(result);
 
-      _syncController.add(SyncProgress(
+      syncController.add(SyncProgress(
           status: SyncStatus.pulling,
           message: 'Remote changes: ${syncDataList.length}',
           totalItems: syncDataList.length,
@@ -347,23 +389,22 @@ class SyncRepository {
   /// Perform the push call
   Future<SyncInfo> _push(
       String clientId, int lastSync, List<SyncData> syncDataList,
-      {required String dbName}) async {
+      {required String dbName, required bool isPartial}) async {
     final ClientChanges clientChanges = ClientChanges()
       ..clientId = clientId
       ..lastSync = lastSync
+      ..isPartial = isPartial ? 1 : 0
       ..changes = syncDataList;
-
-    _syncController.add(SyncProgress(
-      status: SyncStatus.pushing,
-      message: 'Local changes to send: ${syncDataList.length}',
-    ));
-    await Future(() {}); // Update UI
 
     final json = jsonEncode(clientChanges.toMap(skipRowData: false));
     _debugPrint("PUSH ${syncDataList.length} rows");
     dynamic result = await authenticationHelper.authenticatedCall(
         "$serverUrl/push/$realm/$clientId", {},
-        body: json, method: "POST", dbName: dbName, isPushOrPull: true);
+        body: json,
+        method: "POST",
+        dbName: dbName,
+        isPushOrPull: true,
+        syncController: syncController);
     SyncInfo syncInfo = SyncInfo.fromJson(result);
 
     return syncInfo;
@@ -376,7 +417,10 @@ class SyncRepository {
       // This call unexptectly returns even if it's awaited
       await authenticationHelper.authenticatedCall(
           "$serverUrl/cancelSync/$realm", {},
-          body: json, method: "POST", dbName: dbName);
+          body: json,
+          method: "POST",
+          dbName: dbName,
+          syncController: syncController);
     } on Exception catch (e) {
       debugPrint("Error during cancelSync: ${e.toString()}");
     }
@@ -402,7 +446,7 @@ class SyncRepository {
       {required String dbName}) async {
     // Prepara le info sulle tabelle da sincronizzare
     for (var i = 0; i < syncDataList.length; i++) {
-      _syncController.add(SyncProgress(
+      syncController.add(SyncProgress(
           status: SyncStatus.pulling,
           message: 'Importing remote data',
           totalItems: syncDataList.length,
@@ -671,6 +715,6 @@ class SyncRepository {
   }
 
   void dispose() {
-    _syncController.close();
+    syncController.close();
   }
 }

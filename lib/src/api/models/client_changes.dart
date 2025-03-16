@@ -5,11 +5,13 @@ class ClientChanges {
   late String clientId;
   late int lastSync;
   late List<SyncData> changes;
+  int isPartial = 0;
 
   static ClientChanges fromMap(Map jsonData) {
     return ClientChanges()
       ..clientId = jsonData['clientId']
       ..lastSync = jsonData['lastSync']
+      ..isPartial = jsonData['isPartial']
       ..changes = jsonData['changes'].map((e) => SyncData.fromMap(e)).toList();
   }
 
@@ -17,6 +19,7 @@ class ClientChanges {
     return {
       'clientId': clientId,
       'lastSync': lastSync,
+      'isPartial': isPartial,
       'changes': changes.map((e) => e.toMap(skipRowData: skipRowData)).toList()
     };
   }

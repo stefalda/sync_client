@@ -1,14 +1,18 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:sync_client/src/debug_utils.dart';
+import 'package:sync_client/src/upload_chunks.dart';
 import 'package:sync_client/sync_client.dart';
+import 'package:uuid/v4.dart';
 
 const kMaxRetries = 5;
-const kChunkSize = 10000;
-
+const kChunkSize = 5 * 1024 * 1024; //5 Mb
+const kSupportChunkedUpload =
+    false; // At the moment it doesn't seem a viable solution... it crushes the server
 final dio = Dio(
   BaseOptions(
       // connectTimeout: const Duration(seconds: 3),
@@ -33,7 +37,8 @@ class HttpHelper {
       {String? method,
       Object? body,
       Map<String, String> additionalHeaders = const {},
-      isPushOrPull = false}) async {
+      isPushOrPull = false,
+      SyncController? syncController}) async {
     try {
       //DioAdapterInterface().initAdapter(dio);
 
@@ -44,23 +49,37 @@ class HttpHelper {
       // print(body);
       dynamic response;
       // Se sta facendo la GET per sapere se ci sono chunk sospesi non passar
-      if (isPushOrPull && method == 'POST') {
+      if (kSupportChunkedUpload && isPushOrPull && method == 'POST') {
         // Upload JSON Chuncked instead of pushing or pulling everything
         // final data = jsonEncode(body);
         //jsonDecode(body as String);
-        response = await uploadJsonChunked(
-            url: url,
-            jsonString: body as String,
-            chunkSize: kChunkSize,
-            maxRetries: kMaxRetries,
-            headers: headers);
+        response = await //uploadJsonChunked( //One chunck at a time
+            uploadConcurrently(
+                // Multiple chunks
+                url: url,
+                jsonString: body as String,
+                chunkSize: kChunkSize,
+                maxRetries: kMaxRetries,
+                headers: headers,
+                syncId: UuidV4().generate(),
+                syncController: syncController!);
       } else {
         switch (method) {
           case "POST":
             final data = jsonDecode(body as String);
-            final options = Options(headers: headers);
             // This call make the first future to be exited, don't know why...
-            response = await dio.post(url, data: data, options: options);
+            response = await dio.post(
+              url,
+              data: data,
+              options: Options(
+                  headers: {
+                    ...headers,
+                    'Content-Encoding': 'gzip',
+                  },
+                  requestEncoder: (data, options) =>
+                      gzip.encode(utf8.encode(data))),
+            );
+
             break;
           default:
             response = await dio.get(url, options: Options(headers: headers));
@@ -116,13 +135,14 @@ class HttpHelper {
       rethrow;
     }
   }
-
+/*
   Future<Response> uploadJsonChunked(
       {required String url,
       required String jsonString,
       required int chunkSize,
       required int maxRetries,
-      required Map<String, String> headers}) async {
+      required Map<String, String> headers,
+      required SyncController syncController}) async {
     int totalSize = jsonString.length;
     int chunkIndex = 0;
     int retries = 0;
@@ -147,7 +167,13 @@ class HttpHelper {
       String chunkData = jsonString.substring(start, end);
       int chunks = (totalSize / chunkSize).ceil();
       while (retries < maxRetries) {
-        debugPrint("Sending $chunkIndex with ${chunkData.length} data");
+        debugPrint("Sending $chunkIndex/$chunks with ${chunkData.length} data");
+        syncController.add(SyncProgress(
+            status: SyncStatus.pushing,
+            message: 'Sending $chunkIndex/$chunks',
+            processedItems: chunkIndex + 1,
+            totalItems: chunks));
+        //await Future(() {}); //Update UI
         try {
           var response = await dio.post(
             url,
@@ -158,7 +184,13 @@ class HttpHelper {
               "start": start,
               "end": end
             }),
-            options: Options(headers: headers),
+            options: Options(
+              headers: {
+                ...headers,
+                'Content-Encoding': 'gzip',
+              },
+              requestEncoder: (data, options) => gzip.encode(utf8.encode(data)),
+            ),
           );
 
           if (response.statusCode == 200) {
@@ -186,6 +218,7 @@ class HttpHelper {
     debugPrint("✅ Upload JSON completato.");
     return finalResponse; // Ritorna la risposta del server dopo l'ultimo chunk
   }
+  */
 
   /// Return the Simple Authentication header
   static Map<String, String> simpleAuthenticationHeader(

@@ -24,6 +24,7 @@ class AuthenticationHelper {
       Object? body,
       lastCall = false,
       required String dbName,
+      required SyncController syncController,
       isPushOrPull = false}) async {
     final token = await _getToken(dbName: dbName);
     try {
@@ -31,6 +32,7 @@ class AuthenticationHelper {
           body: body,
           method: method,
           isPushOrPull: isPushOrPull,
+          syncController: syncController,
           additionalHeaders:
               HttpHelper.bearerAuthenticationHeader(token: token!));
     } on UnauthorizedException {
@@ -42,11 +44,15 @@ class AuthenticationHelper {
         await _forceRefreshToken(dbName: dbName);
       } catch (ex) {
         // The refreshToken didn't work
-        throw throw SyncException("Unauthorized exception",
+        throw SyncException("Unauthorized exception",
             type: SyncExceptionType.reloginNeeded);
       }
       return await authenticatedCall(url, params,
-          method: method, body: body, lastCall: true, dbName: dbName);
+          method: method,
+          body: body,
+          lastCall: true,
+          dbName: dbName,
+          syncController: syncController);
     } catch (ex) {
       rethrow;
     }
@@ -82,15 +88,24 @@ class AuthenticationHelper {
   Future<SyncDetails> _registerForAToken(SyncDetails syncDetails,
       {required String dbName}) async {
     // Authorization: Basic username:password
-    Map<String, dynamic> tokenData = await httpHelper.call(
-        "$serverUrl/login/$realm", {},
-        body: jsonEncode({"clientId": syncDetails.clientid}),
-        additionalHeaders: HttpHelper.simpleAuthenticationHeader(
-            username: syncDetails.useremail,
-            password: syncDetails.userpassword),
-        method: 'POST');
-    return await _updateSyncDetailsFromTokenData(syncDetails, tokenData,
-        dbName: dbName);
+    try {
+      Map<String, dynamic> tokenData = await httpHelper.call(
+          "$serverUrl/login/$realm", {},
+          body: jsonEncode({"clientId": syncDetails.clientid}),
+          additionalHeaders: HttpHelper.simpleAuthenticationHeader(
+              username: syncDetails.useremail,
+              password: syncDetails.userpassword),
+          method: 'POST',
+          );
+      return await _updateSyncDetailsFromTokenData(syncDetails, tokenData,
+          dbName: dbName);
+    } catch (ex) {
+      if (ex is UnauthorizedException) {
+        throw SyncException("Unauthorized exception",
+            type: SyncExceptionType.reloginNeeded);
+      }
+      rethrow;
+    }
   }
 
   /// Refresh the token and persist data to the DB
