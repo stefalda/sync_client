@@ -60,13 +60,14 @@ mixin SQLiteWrapperSyncMixin on SQLiteWrapperBase {
       {required String dbName, force = false}) async {
     // Check if the table is configured for logging in the tableInfos
     if (!tableInfos.keys.contains(tableName)) return;
-    debugPrint("LOG OPERATION $tableName - $operation - rowguid $rowguid");
+
     // Check if the client is configured for logging
     final shouldLog = await isSyncConfigured(dbName: dbName);
-    if (!force && !shouldLog || isSyncing) {
-      debugPrint("Skipping LOG $shouldLog");
+    if ((!force && !shouldLog) || isSyncing) {
+      debugPrint("Skipping LOG $tableName - $operation - rowguid $rowguid");
       return;
     }
+    debugPrint("LOG OPERATION $tableName - $operation - rowguid $rowguid");
     // Follow the documented logic depending on the operation
     switch (operation) {
       case Operation.delete:
