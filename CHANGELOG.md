@@ -29,3 +29,7 @@
 ## 1.3.0-beta
 
 - Added support for gRPC managed sqlite remote instance
+
+## 1.3.1-beta
+
+- Changed some logging
