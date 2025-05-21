@@ -11,14 +11,14 @@
         }
     },
     "email": {
-        "from": "Nowhere",
-        "fromEmail": "nowhere@land.com",
-        "smtp": "smtp.server.com",
+        "from": "",
+        "fromEmail": "",
+        "smtp": "",
         "port": "2587",
-        "username": "username",
-        "password": "password",
+        "username": "",
+        "password": "",
         "apps": {
-            "default": "Sync Server Default App"
+            "default": "Demo App"
         }
     }
 }

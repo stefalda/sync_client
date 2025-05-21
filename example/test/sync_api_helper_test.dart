@@ -5,7 +5,11 @@ import 'package:sqlite_wrapper_sync_sample/database_service.dart';
 import 'package:sqlite_wrapper_sync_sample/models.dart';
 import 'package:sync_client/sync_client.dart';
 
-const serverUrl = "http://localhost:3000";
+// HOW TO TEST
+// EMPTY the data folder
+// perform "docker compose up" to start the sync server
+
+const serverUrl = "http://localhost:8076";
 
 const mainDBName = "database1";
 const secondaryDBName = "database2";

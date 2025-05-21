@@ -32,7 +32,7 @@ dependencies:
   path_provider: ^2.1.4 # Required to find the system documents directory - not web
   sync_client:
     path: ./../
-  sqflite_common_ffi_web: ^0.4.5+2 # dart run sqflite_common_ffi_web:setup --force
+  sqflite_common_ffi_web: ^1.0.0 # dart run sqflite_common_ffi_web:setup --force
   path: ^1.9.0
   inject_x: ^0.0.3
 
@@ -45,7 +45,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^4.0.0
+  flutter_lints: ^5.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

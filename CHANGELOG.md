@@ -33,3 +33,7 @@
 ## 1.3.1-beta
 
 - Changed some logging
+
+## 1.3.2-beta
+
+- Upgraded dependency and docker server files

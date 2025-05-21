@@ -16,3 +16,7 @@ sqlite_wrapper_sample.iml
 example/.flutter-plugins
 example/.flutter-plugins-dependencies
 example/sqlite_wrapper_sample.iml
+# TEST
+example/test/data
+example/test/logs
+example/test/temp_uploads
