@@ -102,7 +102,7 @@ class HttpHelper {
         throw SyncException(e.toString(),
             type: SyncExceptionType.connectionException);
       }
-      //debugPrint(e.toString());
+      debugPrint(e.toString());
       final response = e.response;
       if (response?.statusCode == 404) {
         //print("404 Not Found: $url");

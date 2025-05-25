@@ -467,7 +467,7 @@ class SyncRepository {
         // RIMUOVI LA ROWGUID dai campi in modo da essere sicuro della posizione
         if (syncData.rowData == null) {
           _debugPrint("No data for guid ${syncData.rowguid}...");
-          break;
+          continue;
         }
         final rowData = Map<String, dynamic>.from(syncData.rowData!);
         rowData.removeWhere(

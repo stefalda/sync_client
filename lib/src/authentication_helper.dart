@@ -27,6 +27,9 @@ class AuthenticationHelper {
       required SyncController syncController,
       isPushOrPull = false}) async {
     final token = await _getToken(dbName: dbName);
+    if (token == null) {
+      throw Exception('No valid token available');
+    }
     try {
       return await httpHelper.call(url, params,
           body: body,
@@ -34,7 +37,7 @@ class AuthenticationHelper {
           isPushOrPull: isPushOrPull,
           syncController: syncController,
           additionalHeaders:
-              HttpHelper.bearerAuthenticationHeader(token: token!));
+              HttpHelper.bearerAuthenticationHeader(token: token));
     } on UnauthorizedException {
       if (lastCall) {
         throw SyncException("Unauthorized exception",
@@ -90,13 +93,14 @@ class AuthenticationHelper {
     // Authorization: Basic username:password
     try {
       Map<String, dynamic> tokenData = await httpHelper.call(
-          "$serverUrl/login/$realm", {},
-          body: jsonEncode({"clientId": syncDetails.clientid}),
-          additionalHeaders: HttpHelper.simpleAuthenticationHeader(
-              username: syncDetails.useremail,
-              password: syncDetails.userpassword),
-          method: 'POST',
-          );
+        "$serverUrl/login/$realm",
+        {},
+        body: jsonEncode({"clientId": syncDetails.clientid}),
+        additionalHeaders: HttpHelper.simpleAuthenticationHeader(
+            username: syncDetails.useremail,
+            password: syncDetails.userpassword),
+        method: 'POST',
+      );
       return await _updateSyncDetailsFromTokenData(syncDetails, tokenData,
           dbName: dbName);
     } catch (ex) {
@@ -137,13 +141,22 @@ class AuthenticationHelper {
   Future<SyncDetails> _updateSyncDetailsFromTokenData(
       SyncDetails syncDetails, Map<String, dynamic> tokenData,
       {required String dbName}) async {
-    syncDetails.accessToken = tokenData['accessToken'];
-    syncDetails.refreshToken = tokenData['refreshToken'];
-    // syncDetails.accessTokenExpiration = DateTime.fromMillisecondsSinceEpoch(
-    //     tokenData['expires_on'],
-    //     isUtc: true);
-    await sqliteWrapperSync.save(syncDetails.toMap(), SyncDetails.tableName,
-        dbName: dbName, keys: ['clientid']);
-    return syncDetails;
+    try {
+      // BEARER Authentication returns access_tocken and refresh_token
+      // JWT Authentication returns accessToken and refreshToken
+      syncDetails.accessToken =
+          tokenData['accessToken'] ?? tokenData['access_token'];
+      syncDetails.refreshToken =
+          tokenData['refreshToken'] ?? tokenData['refresh_token'];
+      // syncDetails.accessTokenExpiration = DateTime.fromMillisecondsSinceEpoch(
+      //     tokenData['expires_on'],
+      //     isUtc: true);
+      await sqliteWrapperSync.save(syncDetails.toMap(), SyncDetails.tableName,
+          dbName: dbName, keys: ['clientid']);
+      return syncDetails;
+    } catch (ex) {
+      debugPrint("Error updatingSyncDeatils: $ex");
+      rethrow;
+    }
   }
 }

@@ -37,3 +37,8 @@
 ## 1.3.2-beta
 
 - Upgraded dependency and docker server files
+
+## 1.3.3-beta
+
+- Fixes TOKEN authentication (at the moment returning a different json from JWT)
+- Fixes synching when row data are missing (it now continues instead of breaking)
