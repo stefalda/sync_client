@@ -15,7 +15,7 @@ class ClientChanges {
       ..changes = jsonData['changes'].map((e) => SyncData.fromMap(e)).toList();
   }
 
-  toMap({bool skipRowData = false}) {
+  Map<String, Object> toMap({bool skipRowData = false}) {
     return {
       'clientId': clientId,
       'lastSync': lastSync,

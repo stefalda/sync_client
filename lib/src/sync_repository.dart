@@ -641,7 +641,7 @@ class SyncRepository {
   }
 
   /// Ottiene il client id (clientid e lastsync in una map) o restituisce null qualora non sia stato definito
-  _getSyncConfigDetails({required String dbName}) async {
+  Future<dynamic> _getSyncConfigDetails({required String dbName}) async {
     const sql = "SELECT clientid, lastsync FROM sync_details";
     final row =
         await sqliteWrapperSync.query(sql, singleResult: true, dbName: dbName);
@@ -673,7 +673,7 @@ class SyncRepository {
     }
   }
 
-  _debugPrint(String message) {
+  void _debugPrint(String message) {
     if (debug) {
       print(message);
     }

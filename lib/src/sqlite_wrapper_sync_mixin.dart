@@ -33,7 +33,7 @@ mixin SQLiteWrapperSyncMixin on SQLiteWrapperBase {
   }
 
   /// Store the secretKey in the DB in the sync_encryption table
-  setSecretKey(String value, {required String dbName}) async {
+  Future<void> setSecretKey(String value, {required String dbName}) async {
     await super.insert({'secretkey': value}, "sync_encryption", dbName: dbName);
   }
 
@@ -56,7 +56,7 @@ mixin SQLiteWrapperSyncMixin on SQLiteWrapperBase {
   /*
    * Store the modification for synchronization (only if synchronization is configured)
    */
-  logOperation(String tableName, Operation operation, String rowguid,
+  Future<void> logOperation(String tableName, Operation operation, String rowguid,
       {required String dbName, force = false}) async {
     // Check if the table is configured for logging in the tableInfos
     if (!tableInfos.keys.contains(tableName)) return;
@@ -202,7 +202,7 @@ mixin SQLiteWrapperSyncMixin on SQLiteWrapperBase {
   }
 
   /// Insert a new log row
-  _insertLogRow(String tableName, String operation, String rowguid,
+  Future<void> _insertLogRow(String tableName, String operation, String rowguid,
       {required String dbName}) async {
     final SyncData syncData = SyncData(
         tablename: tableName,
@@ -271,7 +271,7 @@ mixin SQLiteWrapperSyncMixin on SQLiteWrapperBase {
 
   /// Check if the table passed is a system one
   /// so it shouldn't be considered for sync
-  _isSystemTable(String table) {
+  bool _isSystemTable(String table) {
     return systemTables.contains(table);
   }
 }

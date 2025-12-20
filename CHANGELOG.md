@@ -42,3 +42,6 @@
 
 - Fixes TOKEN authentication (at the moment returning a different json from JWT)
 - Fixes synching when row data are missing (it now continues instead of breaking)
+
+## 1.3.4-beta
+- Upgraded dependencies

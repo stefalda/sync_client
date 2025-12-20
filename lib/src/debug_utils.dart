@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-debugPrint(message) {
+void debugPrint(message) {
   if (kDebugMode) {
     print(message);
   }
