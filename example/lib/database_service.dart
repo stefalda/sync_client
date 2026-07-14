@@ -10,6 +10,7 @@ import 'package:sync_client/sync_client.dart';
 /// Singleton class to operate with the database and the sync server
 class DatabaseService {
   /// Return conditionally the sync client
+  // ignore: strict_top_level_inference
   getSyncClient({required String dbName}) {
     if (dbName == grpcName) {
       //|| dbName == dbName1) {
@@ -26,9 +27,9 @@ class DatabaseService {
       tableInfos: {"todos": TableInfo(keyField: 'rowguid', binaryFields: [])});
 
   /// Init the Database
-  initDB(
-      {inMemory = false,
-      test = false,
+  Future<void> initDB(
+      {bool inMemory = false,
+      bool test = false,
       required String dbName,
       useGRPC = false}) async {
     debugPrint("initDB $dbName");
