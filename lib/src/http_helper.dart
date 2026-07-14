@@ -116,7 +116,7 @@ class HttpHelper {
             "${response?.statusCode} - Error downloading url: $url - ${response?.data}");
         String message;
         if (response!.data is Map) {
-          message = response.data['message'];
+          message = response.data['message'] ?? response.data.toString();
         } else {
           message = response.data.toString();
         }

@@ -22,6 +22,8 @@ services:
     platform: linux/amd64
     restart: always
     container_name: sync-server
+    environment:
+      - RATE_LIMIT_DISABLE=1
     ports:
       - '3000:3000'
     depends_on:
