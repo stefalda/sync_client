@@ -1,6 +1,8 @@
+import 'package:sync_client/src/encrypt_helper.dart';
+
 class SyncDetails {
   static const tableName = "sync_details";
-  late String name;
+  String? name;
   late String clientid;
   late String useremail;
   late String userpassword;
@@ -13,7 +15,7 @@ class SyncDetails {
     name = row["name"];
     clientid = row["clientid"];
     useremail = row["useremail"];
-    userpassword = row["userpassword"];
+    userpassword = EncryptHelper.decryptPassword(row["userpassword"]) ?? '';
     lastsync =
         DateTime.fromMillisecondsSinceEpoch(row["lastsync"] ?? 0, isUtc: true);
     accessToken = row["accesstoken"];
@@ -26,7 +28,7 @@ class SyncDetails {
 
   SyncDetails(
       {required this.clientid,
-      required this.name,
+      this.name,
       required this.useremail,
       required this.userpassword,
       required this.lastsync,
@@ -38,7 +40,7 @@ class SyncDetails {
     clientid = json['clientid'];
     name = json['name'];
     useremail = json['useremail'];
-    userpassword = json['userpassword'];
+    userpassword = EncryptHelper.decryptPassword(json['userpassword']) ?? '';
     lastsync = json['lastsync'] != null
         ? DateTime.fromMillisecondsSinceEpoch(json['lastsync'], isUtc: true)
         : DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
@@ -55,7 +57,7 @@ class SyncDetails {
     data['clientid'] = clientid;
     data['name'] = name;
     data['useremail'] = useremail;
-    data['userpassword'] = userpassword;
+    data['userpassword'] = EncryptHelper.encryptPassword(userpassword);
     data['lastsync'] = lastsync.millisecondsSinceEpoch;
     data['accesstoken'] = accessToken;
     data['refreshtoken'] = refreshToken;

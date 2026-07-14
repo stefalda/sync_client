@@ -4,7 +4,7 @@ import 'dart:typed_data';
 
 import 'package:sqlite_wrapper/sqlite_wrapper.dart';
 import 'package:sync_client/src/api/models/client_changes.dart';
-import 'package:sync_client/src/api/models/password_chage.dart';
+import 'package:sync_client/src/api/models/password_change.dart';
 import 'package:sync_client/src/api/models/sync_data.dart';
 import 'package:sync_client/src/api/models/sync_details.dart'
     as api_sync_details;
@@ -107,8 +107,9 @@ class SyncRepository {
       secretKey = sqliteWrapperSync.generateSecretKey();
     }
     await sqliteWrapperSync.setSecretKey(secretKey, dbName: dbName);
+    EncryptHelper.secretKey = secretKey;
 
-    await _configureSync(name!, email, password, userRegistration.clientId!,
+    await _configureSync(name, email, password, userRegistration.clientId!,
         dbName: dbName);
     await _logPreviouslyInsertedData(dbName: dbName);
     //syncConfigured = SyncEnabled.enabled;
@@ -165,7 +166,7 @@ class SyncRepository {
         status: SyncStatus.starting,
         message: 'Starting sync...',
       ));
-      await Future(() {}); // Update UI
+      await Future.delayed(Duration.zero); // Update UI
 
       // Get the clientid
       var clientInfo = await _getSyncConfigDetails(dbName: dbName);
@@ -221,7 +222,7 @@ class SyncRepository {
             processedItems: from,
             totalItems: clientDataList.length,
           ));
-          await Future(() {}); // Update UI
+          await Future.delayed(Duration.zero); // Update UI
           print("Pushing $from/${clientDataList.length}");
           from = to;
           //TODO - DELETE ONLY PUSHED DATA
@@ -235,7 +236,7 @@ class SyncRepository {
         status: SyncStatus.completed,
         message: 'Sync completed successfully',
       ));
-      await Future(() {}); // Update UI
+      await Future.delayed(Duration.zero); // Update UI
 
       if (syncInfo.lastSync != null) {
         // Delete rows from sync_data
@@ -255,7 +256,7 @@ class SyncRepository {
         message: 'Sync failed',
         error: ex.toString(),
       ));
-      await Future(() {}); // Update UI
+      await Future.delayed(Duration.zero); // Update UI
 
       if (ex is SyncException) {
         rethrow;
@@ -301,7 +302,7 @@ class SyncRepository {
       // Update the password in the db
       const sqlUpdate = "UPDATE sync_details SET userpassword = ?";
       await SQLiteWrapper()
-          .execute(sqlUpdate, params: [password], dbName: dbName);
+          .execute(sqlUpdate, params: [EncryptHelper.encryptPassword(password)], dbName: dbName);
     } on UnauthorizedException catch (ex) {
       throw SyncException(ex.toString(),
           type: SyncExceptionType.wrongOrExpiredPin);
@@ -367,7 +368,7 @@ class SyncRepository {
           message: 'Remote changes: ${syncDataList.length}',
           totalItems: syncDataList.length,
           processedItems: 0));
-      await Future(() {}); // Update UI
+      await Future.delayed(Duration.zero); // Update UI
 
       // Now remove from syncDataList the keys indicated by the server
       for (var rowguid in syncDetails.outdatedRowsGuid!) {
@@ -426,21 +427,6 @@ class SyncRepository {
     }
   }
 
-  /**
-   * Cicla sui SyncData e aggionge i dati delle righe
-      Future<List<SyncData>> _completeData(List<SyncData> syncDataList) async {
-      syncDataList.forEach((syncData) async {
-      if (syncData.operation != "D") {
-      final sql =
-      "SELECT * from ${syncData.tablename}_sync WHERE ${syncData.tablename!.substring(0, syncData.tablename!.length - 2)}id=${syncData.rowguid}";
-      syncData.rowData =
-      (await this._dbService.getResult(sql)) as Map<String, dynamic>;
-      }
-      });
-      return syncDataList;
-      }
-   */
-
   ///Import data from Server generating the DELETE, INSERT OR UPDATE calls
   Future<void> _importServerData(List<SyncData> syncDataList,
       {required String dbName}) async {
@@ -451,7 +437,7 @@ class SyncRepository {
           message: 'Importing remote data',
           totalItems: syncDataList.length,
           processedItems: i));
-      await Future(() {}); // Update UI
+      await Future.delayed(Duration.zero); // Update UI
       final SyncData syncData = syncDataList.elementAt(i);
       final TableInfo tableInfo =
           sqliteWrapperSync.tableInfos[syncData.tablename]!;
@@ -472,20 +458,7 @@ class SyncRepository {
         final rowData = Map<String, dynamic>.from(syncData.rowData!);
         rowData.removeWhere(
             (key, value) => key == "rowguid" || key == tableInfo.keyField);
-        /*
-        // Se uno dei campi è un uuid occorre trascodificarlo nell'id relativo al DB corrente
-        for (var n = 0; n < tableInfo.externalKeys.length; n++) {
-          final externalKey = tableInfo.externalKeys[n];
-          if (rowData[externalKey.fieldName] != null) {
-            final res = await SQLiteWrapper().query(
-                "SELECT ${externalKey.externalFieldKey} as value FROM "
-                "${externalKey.externalFieldTable} WHERE "
-                "${externalKey.externalKey}='${rowData[externalKey.fieldName]}'",
-                singleResult: true,
-                dbName: dbName);
-            rowData[externalKey.fieldName] = res!["value"];
-          }
-        }*/
+
 
         // If a field valus contains binary data is encoded in base64 and
         // must be decoded
@@ -513,13 +486,7 @@ class SyncRepository {
           rowData[value] = rowData[key];
           rowData.remove(key);
         });
-        // Se abbiamo dei valori booleani convertili in numeri
-        /*for (var key in tableInfo.booleanFields) {
-          print("Converti il boolean field...");
-          if (rowData[key] != null) {
-            rowData[key] = rowData[key] == true ? 1 : 0;
-          }
-        }*/
+
         // ADD to update other fields that must be set to null
         await _addNullFields(syncData.tablename!, tableInfo.keyField, rowData,
             dbName: dbName);
@@ -549,7 +516,7 @@ class SyncRepository {
           _debugPrint(
               "Processing rowguid - ${syncData.rowguid} - table: ${syncData.tablename} operation:  ${syncData.operation}");
 
-          await await sqliteWrapperSync.execute(sql,
+          await sqliteWrapperSync.execute(sql,
               params: values, dbName: dbName, tables: [syncData.tablename!]);
         }
       }
@@ -574,16 +541,25 @@ class SyncRepository {
       {required List<String> binaryFields,
       required List<String> encryptedFields,
       required String dbName}) async {
+    if (!sqliteWrapperSync.tableInfos.containsKey(tableName)) {
+      _debugPrint("Unknown table: $tableName");
+      return [];
+    }
+    final TableInfo tableInfo = sqliteWrapperSync.tableInfos[tableName]!;
+    if (tableInfo.keyField != keyField) {
+      _debugPrint("Key field mismatch for table $tableName");
+      return [];
+    }
     final sql =
         """SELECT sd.operation, sd.clientdate as clientdate, sd.rowguid as _guid, rowData.*
          from sync_data sd LEFT JOIN $tableName as rowData on rowData.$keyField=sd.rowguid
          WHERE
          sd.id IN (
-            SELECT MAX(id) FROM sync_data WHERE tablename='$tableName' GROUP by tablename, rowguid
+            SELECT MAX(id) FROM sync_data WHERE tablename=? GROUP by tablename, rowguid
             )
          """;
     List<SyncData> data = List.empty(growable: true);
-    final rows = await sqliteWrapperSync.query(sql, dbName: dbName);
+    final rows = await sqliteWrapperSync.query(sql, params: [tableName], dbName: dbName);
     for (Map<String, dynamic> row in rows) {
       SyncData syncData = SyncData();
       syncData.rowguid = row["_guid"] as String;
@@ -632,16 +608,17 @@ class SyncRepository {
 
   /// Memorizza sul DB le credenziali scambiate con il server
   Future<void> _configureSync(
-      String name, String email, String password, String clientId,
+      String? name, String email, String password, String clientId,
       {required String dbName}) async {
     const sqlUpdate =
         "INSERT INTO sync_details (name, clientid, useremail, userpassword) values (?,?,?,?)";
     await sqliteWrapperSync.execute(sqlUpdate,
-        params: [name, clientId, email, password], dbName: dbName);
+        params: [name, clientId, email, EncryptHelper.encryptPassword(password)],
+        dbName: dbName);
   }
 
   /// Ottiene il client id (clientid e lastsync in una map) o restituisce null qualora non sia stato definito
-  Future<dynamic> _getSyncConfigDetails({required String dbName}) async {
+  Future<Map<String, dynamic>?> _getSyncConfigDetails({required String dbName}) async {
     const sql = "SELECT clientid, lastsync FROM sync_details";
     final row =
         await sqliteWrapperSync.query(sql, singleResult: true, dbName: dbName);
@@ -653,21 +630,13 @@ class SyncRepository {
 
   /// Create the insert LOGs for all the rows already in the DB
   Future<void> _logPreviouslyInsertedData({required String dbName}) async {
-    //Map<String, TableInfo> tableInfos = _getTableInfos();
-    for (var i = 0; i < sqliteWrapperSync.tableInfos.keys.length; i++) {
-      final String tableName = sqliteWrapperSync.tableInfos.keys.elementAt(i);
-      final TableInfo tableInfo = sqliteWrapperSync.tableInfos[tableName]!;
-      final String sql = "SELECT ${tableInfo.keyField} FROM $tableName";
-      //FIXME - the only composite
-      // This is an associative table without an own key
-      // if (tableInfo.keyField == "" && tableInfo.externalKeys.length > 0) {
-      //  sql =
-      //      "SELECT ${tableInfo.externalKeys.map((e) => e.fieldName).join(", ")} FROM $tableName";
-      //}
+    for (final entry in sqliteWrapperSync.tableInfos.entries) {
+      final String tableName = entry.key;
+      final String sql = "SELECT ${entry.value.keyField} FROM $tableName";
       List<String> rowguids =
           List<String>.from(await sqliteWrapperSync.query(sql, dbName: dbName));
       for (String rowguid in rowguids) {
-        sqliteWrapperSync.logOperation(tableName, Operation.insert, rowguid,
+        await sqliteWrapperSync.logOperation(tableName, Operation.insert, rowguid,
             dbName: dbName, force: true);
       }
     }
@@ -682,11 +651,8 @@ class SyncRepository {
   /// Return the list of all columns of a table
   Future<List<String>> _getAllTablesColumns(String table,
       {required String dbName}) async {
-    const sql = """SELECT p.name as columnName
-                    FROM sqlite_master m
-                    left outer join pragma_table_info((m.name)) p
-                        on m.name <> p.name
-                    WHERE m.name=?
+    const sql = """SELECT name as columnName
+                    FROM pragma_table_info(?)
                     order by columnName""";
     final List<String> results = List.from(
         await sqliteWrapperSync.query(sql, params: [table], dbName: dbName));

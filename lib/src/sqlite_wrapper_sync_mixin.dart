@@ -59,7 +59,7 @@ mixin SQLiteWrapperSyncMixin on SQLiteWrapperBase {
   Future<void> logOperation(String tableName, Operation operation, String rowguid,
       {required String dbName, force = false}) async {
     // Check if the table is configured for logging in the tableInfos
-    if (!tableInfos.keys.contains(tableName)) return;
+    if (!tableInfos.containsKey(tableName)) return;
 
     // Check if the client is configured for logging
     final shouldLog = await isSyncConfigured(dbName: dbName);
@@ -186,12 +186,11 @@ mixin SQLiteWrapperSyncMixin on SQLiteWrapperBase {
   /// Get the current state of sync, returning true if there are local
   /// unsyncronized rows that should be sent to the server
   Future<bool> shouldSync({required String dbName}) async {
-    return await super.query("SELECT COUNT(*) FROM ${SyncData.tableName}",
-            singleResult: true,
-            params: [],
-            fromMap: SyncDetails.fromDB,
-            dbName: dbName) >
-        0;
+    final int count = await super.query("SELECT COUNT(*) FROM ${SyncData.tableName}",
+        singleResult: true,
+        params: [],
+        dbName: dbName);
+    return count > 0;
   }
 
   /// Delete a sync data row
@@ -225,10 +224,12 @@ mixin SQLiteWrapperSyncMixin on SQLiteWrapperBase {
     String sql =
         "SELECT id, tablename, rowguid, operation, clientdate FROM ${SyncData.tableName} WHERE tablename = ? AND rowguid = ?";
     if (operationFilter != null) {
-      sql += " AND operation = '$operationFilter!'";
+      sql += " AND operation = ?";
     }
     return await super.query(sql,
-        params: [tableName, rowguid],
+        params: operationFilter != null
+            ? [tableName, rowguid, operationFilter]
+            : [tableName, rowguid],
         singleResult: true,
         fromMap: SyncData.fromDB,
         dbName: dbName);
@@ -254,7 +255,8 @@ mixin SQLiteWrapperSyncMixin on SQLiteWrapperBase {
     final now = DateTime.now().toUtc();
     for (String tablename in tableInfos.keys) {
       final TableInfo? tableInfo = tableInfos[tablename];
-      await _insertInitialSyncData(tablename, tableInfo!.keyField, now,
+      if (tableInfo == null) continue;
+      await _insertInitialSyncData(tablename, tableInfo.keyField, now,
           dbName: dbName);
     }
   }

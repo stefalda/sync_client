@@ -63,6 +63,26 @@ class EncryptHelper {
     return _key!;
   }
 
+  static const String _passwordPrefix = '{AES}';
+
+  /// Encrypt a password with {AES} prefix marker.
+  /// No prefix means plaintext (backward compatible).
+  static String? encryptPassword(String? password) {
+    if (password == null || password.isEmpty) return password;
+    final encrypted = encrypt(password);
+    if (encrypted == null) return password;
+    return '$_passwordPrefix$encrypted';
+  }
+
+  /// Decrypt a password that may have {AES} prefix marker.
+  /// No prefix means plaintext (legacy data).
+  static String? decryptPassword(String? password) {
+    if (password == null || password.isEmpty) return password;
+    if (!password.startsWith(_passwordPrefix)) return password;
+    final encrypted = password.substring(_passwordPrefix.length);
+    return decrypt(encrypted);
+  }
+
   /// Return the Encrypter and initialize it with the secret key
   static Encrypter _getEncrypter() {
     if (_encrypter != null) return _encrypter!;

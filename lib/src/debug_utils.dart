@@ -1,7 +1,6 @@
-import 'package:flutter/foundation.dart';
-
-void debugPrint(message) {
-  if (kDebugMode) {
+void debugPrint(Object? message) {
+  const bool debug = bool.fromEnvironment('debug');
+  if (debug) {
     print(message);
   }
 }

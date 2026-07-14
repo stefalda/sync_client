@@ -37,7 +37,9 @@ class SyncProgress {
   });
 
   double? get progress {
-    if (processedItems == null || totalItems == null) return null;
+    if (processedItems == null || totalItems == null || totalItems == 0) {
+      return null;
+    }
     return processedItems! / totalItems!;
   }
 }

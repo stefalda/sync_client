@@ -40,7 +40,6 @@ class HttpHelper {
       isPushOrPull = false,
       SyncController? syncController}) async {
     try {
-      //DioAdapterInterface().initAdapter(dio);
 
       Map<String, String> headers = HashMap();
       headers['Accept'] = 'application/json';
@@ -135,91 +134,6 @@ class HttpHelper {
       rethrow;
     }
   }
-/*
-  Future<Response> uploadJsonChunked(
-      {required String url,
-      required String jsonString,
-      required int chunkSize,
-      required int maxRetries,
-      required Map<String, String> headers,
-      required SyncController syncController}) async {
-    int totalSize = jsonString.length;
-    int chunkIndex = 0;
-    int retries = 0;
-    dynamic finalResponse;
-    // Let's KISS
-    // Recupera l'ultimo chunk ricevuto dal server
-    // try {
-    //   Response resumeResponse =
-    //       await dio.get(url, options: Options(headers: headers));
-    //   if (resumeResponse.statusCode == 200) {
-    //     chunkIndex = resumeResponse.data['lastChunk'];
-    //     print("🔄 Riprendendo l'upload dal chunk: $chunkIndex");
-    //   }
-    // } catch (e) {
-    //   print("⚠️ Non è stato possibile recuperare lo stato dell'upload: $e");
-    // }
-
-    while (chunkIndex * chunkSize < totalSize) {
-      // Calcola il chunk da inviare
-      int start = chunkIndex * chunkSize;
-      int end = (start + chunkSize > totalSize) ? totalSize : start + chunkSize;
-      String chunkData = jsonString.substring(start, end);
-      int chunks = (totalSize / chunkSize).ceil();
-      while (retries < maxRetries) {
-        debugPrint("Sending $chunkIndex/$chunks with ${chunkData.length} data");
-        syncController.add(SyncProgress(
-            status: SyncStatus.pushing,
-            message: 'Sending $chunkIndex/$chunks',
-            processedItems: chunkIndex + 1,
-            totalItems: chunks));
-        //await Future(() {}); //Update UI
-        try {
-          var response = await dio.post(
-            url,
-            data: jsonEncode({
-              "chunkIndex": chunkIndex,
-              "chunks": chunks,
-              "data": chunkData,
-              "start": start,
-              "end": end
-            }),
-            options: Options(
-              headers: {
-                ...headers,
-                'Content-Encoding': 'gzip',
-              },
-              requestEncoder: (data, options) => gzip.encode(utf8.encode(data)),
-            ),
-          );
-
-          if (response.statusCode == 200) {
-            debugPrint("✅ Chunk $chunkIndex inviato con successo.");
-            finalResponse = response; // Salva la response dell'ultimo chunk
-            chunkIndex++;
-            retries = 0;
-            break;
-          }
-        } catch (e) {
-          retries++;
-          debugPrint(
-              "⚠️ Tentativo $retries per il chunk $chunkIndex fallito: $e");
-          await Future.delayed(
-              Duration(seconds: 2 * retries)); // Backoff esponenziale
-        }
-      }
-
-      if (retries >= maxRetries) {
-        debugPrint("❌ Upload fallito dopo $maxRetries tentativi.");
-        throw {"Upload fallito dopo $maxRetries tentativi"};
-      }
-    }
-
-    debugPrint("✅ Upload JSON completato.");
-    return finalResponse; // Ritorna la risposta del server dopo l'ultimo chunk
-  }
-  */
-
   /// Return the Simple Authentication header
   static Map<String, String> simpleAuthenticationHeader(
       {required String username, required String password}) {
