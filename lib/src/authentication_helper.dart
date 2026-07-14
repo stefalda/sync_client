@@ -63,6 +63,9 @@ class AuthenticationHelper {
 
   /// Return a token to be used in authenticated calls
   Future<String?> _getToken({required String dbName}) async {
+    if (EncryptHelper.secretKey == null) {
+      await sqliteWrapperSync.getSecretKey(dbName: dbName);
+    }
     SyncDetails detail = await _getTokenFromDB(dbName: dbName);
     if (detail.accessToken == null) {
       detail = await _registerForAToken(detail, dbName: dbName);

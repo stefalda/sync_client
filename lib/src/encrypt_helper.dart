@@ -57,21 +57,36 @@ class EncryptHelper {
   static Key _getKey() {
     if (_key != null) return _key!;
     // secretKey MUST BE VALORIZED before encrypting/decrypting
-    assert(secretKey != null,
+    assert(secretKey != null && secretKey!.isNotEmpty,
         "The secretKey for encryption/decryption MUST BE CONFIGURED");
     _key = Key.fromUtf8(secretKey!);
     return _key!;
   }
 
   static const String _passwordPrefix = '{AES}';
+  static Key? _passwordKey;
+  static Encrypter? _passwordEncrypter;
+
+  static Key _getPasswordKey() {
+    if (_passwordKey != null) return _passwordKey!;
+    final keyString = convertPinToSecretKey('sync_client_password_v1');
+    _passwordKey = Key.fromUtf8(keyString);
+    return _passwordKey!;
+  }
+
+  static Encrypter _getPasswordEncrypter() {
+    if (_passwordEncrypter != null) return _passwordEncrypter!;
+    _passwordEncrypter = Encrypter(AES(_getPasswordKey()));
+    return _passwordEncrypter!;
+  }
 
   /// Encrypt a password with {AES} prefix marker.
   /// No prefix means plaintext (backward compatible).
+  /// Uses a dedicated key independent of the field-encryption secretKey.
   static String? encryptPassword(String? password) {
     if (password == null || password.isEmpty) return password;
-    final encrypted = encrypt(password);
-    if (encrypted == null) return password;
-    return '$_passwordPrefix$encrypted';
+    final encrypted = _getPasswordEncrypter().encrypt(password, iv: iv);
+    return '$_passwordPrefix${encrypted.base64}';
   }
 
   /// Decrypt a password that may have {AES} prefix marker.
@@ -79,8 +94,8 @@ class EncryptHelper {
   static String? decryptPassword(String? password) {
     if (password == null || password.isEmpty) return password;
     if (!password.startsWith(_passwordPrefix)) return password;
-    final encrypted = password.substring(_passwordPrefix.length);
-    return decrypt(encrypted);
+    final encrypted = Encrypted.fromBase64(password.substring(_passwordPrefix.length));
+    return _getPasswordEncrypter().decrypt(encrypted, iv: iv);
   }
 
   /// Return the Encrypter and initialize it with the secret key

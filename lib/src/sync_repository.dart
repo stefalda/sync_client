@@ -101,13 +101,12 @@ class SyncRepository {
       throw SyncException(e.message, type: SyncExceptionType.generic);
     }
     if (newRegistration && secretKey.isEmpty) {
-      // GENERATE THE SECRET KEY
-      // If there're no encrypted fields in the
-      // tableInfo it will be never used
       secretKey = sqliteWrapperSync.generateSecretKey();
     }
-    await sqliteWrapperSync.setSecretKey(secretKey, dbName: dbName);
-    EncryptHelper.secretKey = secretKey;
+    if (secretKey.isNotEmpty) {
+      await sqliteWrapperSync.setSecretKey(secretKey, dbName: dbName);
+      EncryptHelper.secretKey = secretKey;
+    }
 
     await _configureSync(name, email, password, userRegistration.clientId!,
         dbName: dbName);
