@@ -45,3 +45,8 @@
 
 ## 1.3.4-beta
 - Upgraded dependencies
+
+## 1.3.5-beta
+- Added local password encryption
+- Code reviewed
+- Removed direct sqlite3 dependency

@@ -13,7 +13,6 @@ dependencies:
   sqlite_wrapper:
     ^0.3.7-beta
     #path: ./../../open-source/sqlite_wrapper
-  sqlite3: ^3.1.1
   uuid: ^4.5.2
   crypto: ^3.0.7
   encrypt: ^5.0.3
