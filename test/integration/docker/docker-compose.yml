@@ -31,3 +31,36 @@ services:
       - ./config.json:/app/dist/config.json
       - /tmp/sync-logs:/app/dist/logs
       - /tmp/sync-uploads:/app/dist/temp_uploads
+
+  sqlitewrapperserver:
+    image: sfalda/sqlite_wrapper_server:latest
+    platform: linux/amd64
+    ports:
+      - "50051"
+    tmpfs: /data
+    environment:
+      SECRET_KEY: "41666b6b-c045-4cc2-aa09-67ba0cb8d55c"
+      UNAUTHENTICATED: true
+      SHARED_DB: true
+
+  envoy:
+    image: envoyproxy/envoy:v1.33-latest
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml
+    ports:
+      - "50052:50052"
+
+  sqlitewrapperserver-auth:
+    image: sfalda/sqlite_wrapper_server:latest
+    platform: linux/amd64
+    tmpfs: /data
+    environment:
+      SECRET_KEY: "41666b6b-c045-4cc2-aa09-67ba0cb8d55c"
+      SHARED_DB: true
+
+  envoy-auth:
+    image: envoyproxy/envoy:v1.33-latest
+    volumes:
+      - ./envoy-auth.yaml:/etc/envoy/envoy.yaml
+    ports:
+      - "50054:50054"
