@@ -24,7 +24,9 @@ class DatabaseService {
       tableInfos: {"todos": TableInfo(keyField: 'rowguid', binaryFields: [])});
 
   SQLiteWrapperSyncGRPC sqLiteWrapperSyncGRPC = SQLiteWrapperSyncGRPC(
-      tableInfos: {"todos": TableInfo(keyField: 'rowguid', binaryFields: [])});
+      tableInfos: {"todos": TableInfo(keyField: 'rowguid', binaryFields: [])},
+      host: 'localhost',
+      port: 50052);
 
   /// Init the Database
   Future<void> initDB(
@@ -35,8 +37,7 @@ class DatabaseService {
     debugPrint("initDB $dbName");
     String dbPath = inMemoryDatabasePath;
     if (useGRPC) {
-      sqLiteWrapperSyncGRPC.initServiceManager(
-          host: 'localhost', port: 50052, secure: false);
+      // gRPC connection already configured via constructor
     } else if (!inMemory) {
       if (test) {
         dbPath = "$dbName.sqlite";

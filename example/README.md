@@ -21,7 +21,7 @@ The `sync_client` library (at the parent directory) depends on `sqlite_wrapper`.
 
 ```yaml
 dependencies:
-  sqlite_wrapper: ^0.3.7-beta
+  sqlite_wrapper: ^0.4.0
 ```
 
 ### 2. Start the backend services

@@ -12,7 +12,10 @@ class ClientChanges {
       ..clientId = jsonData['clientId']
       ..lastSync = jsonData['lastSync']
       ..isPartial = jsonData['isPartial']
-      ..changes = jsonData['changes'].map((e) => SyncData.fromMap(e)).toList();
+      ..changes = (jsonData['changes'] as List)
+          .map((e) => SyncData.fromMap(e))
+          .toList()
+          .cast<SyncData>();
   }
 
   Map<String, Object> toMap({bool skipRowData = false}) {

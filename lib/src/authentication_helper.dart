@@ -2,7 +2,6 @@
 
 import 'dart:convert';
 
-import 'package:sqlite_wrapper/sqlite_wrapper.dart';
 import 'package:sync_client/src/debug_utils.dart';
 import 'package:sync_client/sync_client.dart';
 
@@ -10,11 +9,15 @@ class AuthenticationHelper {
   final String serverUrl;
   final String realm;
   final SQLiteWrapperSyncMixin sqliteWrapperSync;
+  late final HttpHelper httpHelper;
 
   AuthenticationHelper(
       {required this.serverUrl,
       required this.realm,
-      required this.sqliteWrapperSync});
+      required this.sqliteWrapperSync,
+      HttpHelper? customHttpHelper}) {
+    httpHelper = customHttpHelper ?? httpHelper;
+  }
 
   /// Execute an authenticated call passing the token
   /// if the token is expired tries to renew it or
@@ -86,7 +89,7 @@ class AuthenticationHelper {
 
   Future<SyncDetails> _getTokenFromDB({required String dbName}) async {
     const sql = "SELECT * FROM sync_details";
-    return await SQLiteWrapper().query(sql,
+    return await sqliteWrapperSync.query(sql,
         singleResult: true, dbName: dbName, fromMap: SyncDetails.fromDB);
   }
 

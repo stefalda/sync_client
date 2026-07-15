@@ -1,0 +1,45 @@
+services:
+  db:
+    image: postgres:alpine3.20
+    user: postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgress
+      - POSTGRES_DB=postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 1s
+      timeout: 5s
+      retries: 10  
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./database_postgres_script.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./data:/var/lib/postgresql/data
+    
+  server:
+    image: sfalda/sync_server:latest
+    restart: always
+#    environment:
+#      - PORT=$PORT
+#      - BASE_URL=$BASE_URL
+#      - DB_CONNECTION=$DB_CONNECTION
+#      - GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID
+#      - GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET
+#      - SESSION_SECRET=$SESSION_SECRET
+#      - EMAIL_FROM_NAME=$EMAIL_FROM_NAME
+#      - EMAIL_FROM_EMAIL=$EMAIL_FROM_EMAIL
+#      - EMAIL_SMTP_ADDRESS=$EMAIL_SMTP_ADDRESS
+#      - EMAIL_SMTP_PORT=$EMAIL_SMTP_PORT
+#      - EMAIL_SMTP_USERNAME=$EMAIL_SMTP_USERNAME
+#      - EMAIL_SMTP_PASSWORD=$EMAIL_SMTP_PASSWORD
+    container_name: sync-server
+    ports:
+      - '8076:3000'
+    depends_on:
+        db:
+          condition: service_healthy
+    volumes:
+      - ./config.json:/app/dist/config.json
+      - ./logs:/app/dist/logs
+      - ./temp_uploads:/app/dist/temp_uploads

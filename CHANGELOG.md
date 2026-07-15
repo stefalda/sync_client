@@ -50,3 +50,6 @@
 - Added local password encryption
 - Code reviewed
 - Removed direct sqlite3 dependency
+
+## 1.4.0
+- Aligned with new sqlite_wrapper 0.4.0

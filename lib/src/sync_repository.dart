@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:sqlite_wrapper/sqlite_wrapper.dart';
 import 'package:sync_client/src/api/models/client_changes.dart';
 import 'package:sync_client/src/api/models/password_change.dart';
 import 'package:sync_client/src/api/models/sync_data.dart';
@@ -27,16 +26,20 @@ class SyncRepository {
   final SyncController syncController =
       StreamController<SyncProgress>.broadcast();
   Stream<SyncProgress> get syncProgress => syncController.stream;
+  late final HttpHelper httpHelper;
 
   //Constructor
   SyncRepository(
       {required this.sqliteWrapperSync,
       required this.serverUrl,
-      required this.realm}) {
+      required this.realm,
+      HttpHelper? customHttpHelper}) {
+    httpHelper = customHttpHelper ?? httpHelper;
     authenticationHelper = AuthenticationHelper(
         serverUrl: serverUrl,
         realm: realm,
-        sqliteWrapperSync: sqliteWrapperSync);
+        sqliteWrapperSync: sqliteWrapperSync,
+        customHttpHelper: httpHelper);
   }
 
   /// Register the User and the Client
@@ -147,7 +150,7 @@ class SyncRepository {
     // DELETE SYNC DETAIL
     await sqliteWrapperSync.execute("DELETE FROM sync_details", dbName: dbName);
     // DELETE THE SECRET KEY
-    await SQLiteWrapper()
+    await sqliteWrapperSync
         .execute("DELETE FROM sync_encryption", dbName: dbName);
   }
 
@@ -300,7 +303,7 @@ class SyncRepository {
           body: json, method: "POST");
       // Update the password in the db
       const sqlUpdate = "UPDATE sync_details SET userpassword = ?";
-      await SQLiteWrapper()
+      await sqliteWrapperSync
           .execute(sqlUpdate, params: [EncryptHelper.encryptPassword(password)], dbName: dbName);
     } on UnauthorizedException catch (ex) {
       throw SyncException(ex.toString(),

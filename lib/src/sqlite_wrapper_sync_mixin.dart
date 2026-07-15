@@ -267,7 +267,7 @@ mixin SQLiteWrapperSyncMixin on SQLiteWrapperBase {
       {required String dbName}) async {
     await execute(
         """INSERT INTO sync_data (tablename, rowguid, operation, clientdate)
-                    SELECT '$tablename', $keyfield, 'I', ? FROM $tablename LEFT JOIN sync_data on sync_data.rowguid=$keyfield WHERE sync_data.rowguid is null""",
+                    SELECT '$tablename', $tablename.$keyfield, 'I', ? FROM $tablename LEFT JOIN sync_data on sync_data.rowguid=$tablename.$keyfield WHERE sync_data.rowguid is null""",
         params: [now.millisecondsSinceEpoch], dbName: dbName);
   }
 
