@@ -20,6 +20,8 @@ services:
     image: sfalda/sync_server:latest
     restart: always
     container_name: sync-server
+    environment:
+      - RATE_LIMIT_DISABLE=1
     ports:
       - '8076:3000'
     depends_on:

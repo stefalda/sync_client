@@ -9,15 +9,14 @@ class AuthenticationHelper {
   final String serverUrl;
   final String realm;
   final SQLiteWrapperSyncMixin sqliteWrapperSync;
-  late final HttpHelper httpHelper;
+  final HttpHelper httpHelper;
 
   AuthenticationHelper(
       {required this.serverUrl,
       required this.realm,
       required this.sqliteWrapperSync,
-      HttpHelper? customHttpHelper}) {
-    httpHelper = customHttpHelper ?? httpHelper;
-  }
+      HttpHelper? customHttpHelper})
+      : httpHelper = customHttpHelper ?? HttpHelper();
 
   /// Execute an authenticated call passing the token
   /// if the token is expired tries to renew it or

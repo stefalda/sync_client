@@ -26,15 +26,15 @@ class SyncRepository {
   final SyncController syncController =
       StreamController<SyncProgress>.broadcast();
   Stream<SyncProgress> get syncProgress => syncController.stream;
-  late final HttpHelper httpHelper;
+  final HttpHelper httpHelper;
 
   //Constructor
   SyncRepository(
       {required this.sqliteWrapperSync,
       required this.serverUrl,
       required this.realm,
-      HttpHelper? customHttpHelper}) {
-    httpHelper = customHttpHelper ?? httpHelper;
+      HttpHelper? customHttpHelper})
+      : httpHelper = customHttpHelper ?? HttpHelper() {
     authenticationHelper = AuthenticationHelper(
         serverUrl: serverUrl,
         realm: realm,
