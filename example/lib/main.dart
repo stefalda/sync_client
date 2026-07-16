@@ -53,15 +53,27 @@ class HomePage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TodoList(
-                    dbName: dbName1,
-                  ),
-                  TodoList(dbName: dbName2),
-                  TodoList(dbName: grpcName),
-                ]),
+            child: ValueListenableBuilder<int>(
+              valueListenable: databaseService.resetNotifier,
+              builder: (context, resetCount, _) {
+                return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TodoList(
+                        dbName: dbName1,
+                        key: ValueKey('$dbName1-$resetCount'),
+                      ),
+                      TodoList(
+                        dbName: dbName2,
+                        key: ValueKey('$dbName2-$resetCount'),
+                      ),
+                      TodoList(
+                        dbName: grpcName,
+                        key: ValueKey('$grpcName-$resetCount'),
+                      ),
+                    ]);
+              },
+            ),
           ),
 
           /// Bottom buttons to perform registration and sync
@@ -71,6 +83,12 @@ class HomePage extends StatelessWidget {
               TextButton(
                   onPressed: () => databaseService.register(dbName1, dbName2),
                   child: const Text("Register")),
+              TextButton(
+                  onPressed: () => databaseService.resetAll(),
+                  child: const Text("Reset")),
+              TextButton(
+                  onPressed: () => databaseService.reconnectGrpc(),
+                  child: const Text("Reconnect gRPC")),
             ],
           )
         ],

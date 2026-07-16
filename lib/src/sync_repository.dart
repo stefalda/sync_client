@@ -319,10 +319,16 @@ class SyncRepository {
 
   /// Verifica se è configurata la sincronizzazione
   Future<bool> isConfigured({required String dbName}) async {
-    const sql = "SELECT COUNT(*) FROM sync_details";
-    return (await sqliteWrapperSync.query(sql,
-            singleResult: true, dbName: dbName)) >
-        0;
+    try {
+      const sql = "SELECT COUNT(*) FROM sync_details";
+      return (await sqliteWrapperSync.query(sql,
+              singleResult: true, dbName: dbName)) >
+          0;
+    } catch (_) {
+      // Se la query fallisce (es. server giù, databases non popolato)
+      // assumiamo che non sia configurato.
+      return false;
+    }
   }
 
   /// Reset syncDetails usually when both tokens are invalid

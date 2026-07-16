@@ -1,6 +1,6 @@
 name: sync_client
 description: A library to sync based on sqlite_wrapper
-version: 1.4.0
+version: 1.4.1
 homepage: https://github.com/stefalda/sync_client
 issue_tracker: https://github.com/stefalda/sync_client/issues
 
@@ -10,8 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  sqlite_wrapper: ^0.4.0
-  # path: ./../../open-source/sqlite_wrapper
+  sqlite_wrapper: ^0.5.2
+  #  path: ./../../open-source/sqlite_wrapper
   uuid: ^4.5.2
   crypto: ^3.0.7
   encrypt: ^5.0.3

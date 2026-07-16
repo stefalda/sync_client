@@ -3,7 +3,6 @@
 
 import 'dart:convert';
 
-import 'package:sync_client/src/http_helper.dart';
 import 'package:sync_client/sync_client.dart';
 import 'package:test/test.dart';
 
