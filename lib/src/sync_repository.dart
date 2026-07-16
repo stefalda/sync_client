@@ -114,7 +114,7 @@ class SyncRepository {
     await _configureSync(name, email, password, userRegistration.clientId!,
         dbName: dbName);
     await _logPreviouslyInsertedData(dbName: dbName);
-    //syncConfigured = SyncEnabled.enabled;
+    sqliteWrapperSync.syncConfigured = SyncEnabled.enabled;
     debugPrint("Ready for first sync");
   }
 

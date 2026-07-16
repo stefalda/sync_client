@@ -295,11 +295,16 @@ class DatabaseService {
       }
     }
 
-    /// Resetta il database gRPC: best-effort, ignora errori di rete
-    try {
-      await sqLiteWrapperSyncGRPC
-          .execute("DROP TABLE IF EXISTS todos", dbName: grpcName);
-    } catch (_) {}
+    /// Resetta il database gRPC: best-effort, ignora errori di rete.
+    /// Prima garantisce che l'entry in databases esista (serve per le
+    /// execute che seguono), poi droppa e ricrea tutte le tabelle.
+    _ensureGrpcDbEntry();
+    for (final table in ["sync_data", "sync_details", "sync_encryption", "todos"]) {
+      try {
+        await sqLiteWrapperSyncGRPC
+            .execute("DROP TABLE IF EXISTS $table", dbName: grpcName);
+      } catch (_) {}
+    }
     try {
       await sqLiteWrapperSyncGRPC.initSyncTables(dbName: grpcName);
     } catch (_) {}
@@ -318,9 +323,11 @@ class DatabaseService {
     await initDB(dbName: dbName2);
     await initDB(dbName: grpcName, useGRPC: true);
 
-    /// Dopo il reset i flag sono certamente a "non configurato"
-    sqLiteWrapperSync.syncConfigured = SyncEnabled.disabled;
-    sqLiteWrapperSyncGRPC.syncConfigured = SyncEnabled.disabled;
+    /// Dopo il reset forza il ricaricamento del flag: mettendo unknown,
+    /// isSyncConfigured() rileverà la sync_details vuota (non configurato).
+    /// Dopo la registrazione, SyncRepository.register() aggiornerà il flag.
+    sqLiteWrapperSync.syncConfigured = SyncEnabled.unknown;
+    sqLiteWrapperSyncGRPC.syncConfigured = SyncEnabled.unknown;
 
     // La garanzia dell'entry in databases per grpcDB è ora gestita da
     // initDB() stesso (per gRPC chiama sempre _ensureGrpcDbEntry()).
