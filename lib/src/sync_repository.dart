@@ -539,7 +539,8 @@ class SyncRepository {
       syncDataList.addAll(await _getSyncData(tableName, tableInfo.keyField,
           dbName: dbName,
           binaryFields: tableInfo.binaryFields,
-          encryptedFields: tableInfo.encryptedFields));
+          encryptedFields: tableInfo.encryptedFields,
+          includeBinaryField: tableInfo.includeBinaryField));
     }
     return syncDataList;
   }
@@ -548,7 +549,9 @@ class SyncRepository {
   Future<List<SyncData>> _getSyncData(String tableName, String keyField,
       {required List<String> binaryFields,
       required List<String> encryptedFields,
-      required String dbName}) async {
+      required String dbName,
+      bool Function(String fieldName, Map<String, dynamic> rowData)?
+          includeBinaryField}) async {
     if (!sqliteWrapperSync.tableInfos.containsKey(tableName)) {
       _debugPrint("Unknown table: $tableName");
       return [];
@@ -586,6 +589,12 @@ class SyncRepository {
       // Converti in base 64 i binaryFields
       for (String field in binaryFields) {
         if (rowData[field] != null) {
+          // Check the per-row callback: if it returns false, exclude the field
+          if (includeBinaryField != null &&
+              !includeBinaryField(field, rowData)) {
+            rowData.remove(field);
+            continue;
+          }
           rowData[field] = base64Encode(rowData[field] as Uint8List);
         }
       }

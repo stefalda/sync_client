@@ -32,7 +32,8 @@ The `SQLiteWrapperSync` must be instantiated by passing a configuration of all t
    - The key of the `Map` is the table name.
    - `keyField` is the primary key of the table.
    - `encryptedFields` is a list of fields that should be encrypted before sending data to the server.
-   - `binaryFields` is a list of fields that should be encoded in base64.
+    - `binaryFields` is a list of fields that should be encoded in base64.
+    - `includeBinaryField` (optional) is a per-row callback `bool Function(String fieldName, Map<String, dynamic> rowData)` to conditionally exclude binary fields from the sync payload. Return `false` to skip encoding/including the field for that row.
 
 ```dart
 SQLiteWrapperSync db = SQLiteWrapperSync(tableInfos: {

@@ -1,3 +1,6 @@
+## 1.4.3
+- Added `includeBinaryField` callback to `TableInfo` for per-row conditional binary field encoding
+
 ## 1.4.2
 - Added support for new sqlite_wrapper 0.4.2
 - Reviewed example
