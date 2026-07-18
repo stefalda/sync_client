@@ -1,3 +1,6 @@
+## 1.4.5
+- Changed gzip compression for the web version
+
 ## 1.4.4
 - Added support for refreshToken in gRPC authentication
 

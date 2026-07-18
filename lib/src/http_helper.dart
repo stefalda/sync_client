@@ -66,18 +66,24 @@ class HttpHelper {
         switch (method) {
           case "POST":
             final data = jsonDecode(body as String);
-            // This call make the first future to be exited, don't know why...
-            response = await dio.post(
-              url,
-              data: data,
-              options: Options(
-                  headers: {
-                    ...headers,
-                    'Content-Encoding': 'gzip',
-                  },
-                  requestEncoder: (data, options) =>
-                      gzip.encode(utf8.encode(data))),
-            );
+            try {
+              final jsonBody = jsonEncode(data);
+              final compressed = gzip.encode(utf8.encode(jsonBody));
+              response = await dio.post(
+                url,
+                data: compressed,
+                options: Options(headers: {
+                  ...headers,
+                  'Content-Encoding': 'gzip',
+                }),
+              );
+            } catch (_) {
+              response = await dio.post(
+                url,
+                data: data,
+                options: Options(headers: headers),
+              );
+            }
 
             break;
           default:
@@ -97,7 +103,7 @@ class HttpHelper {
         }
       }
     } on DioException catch (e) {
-      if (e is SocketException || e.response == null) {
+      if (e.response == null) {
         throw SyncException(e.toString(),
             type: SyncExceptionType.connectionException);
       }
