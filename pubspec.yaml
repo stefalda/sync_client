@@ -10,7 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  sqlite_wrapper: ^0.5.2
+  sqlite_wrapper: ^0.5.3
   #  path: ./../../open-source/sqlite_wrapper
   uuid: ^4.5.2
   crypto: ^3.0.7

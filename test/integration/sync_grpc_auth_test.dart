@@ -25,11 +25,11 @@ void main() {
       );
 
       // Register via authClient — no token needed
-      final token = await db.authClient.register(email, password);
-      expect(token, isNotEmpty);
+      final registerResponse = await db.authClient.register(email, password);
+      expect(registerResponse.token, isNotEmpty);
 
       // Set the token so subsequent calls are authenticated
-      db.token = token;
+      db.token = registerResponse.token;
 
       await db.openDB('ignored', dbName: 'auth_test', onCreate: () async {
         await db.execute('''
@@ -93,14 +93,14 @@ void main() {
         port: authGrpcPort,
       );
 
-      final registerToken = await db.authClient.register(email, password);
-      expect(registerToken, isNotEmpty);
+      final registerResponse = await db.authClient.register(email, password);
+      expect(registerResponse.token, isNotEmpty);
 
-      final loginToken = await db.authClient.login(email, password);
-      expect(loginToken, isNotEmpty);
+      final loginResponse = await db.authClient.login(email, password);
+      expect(loginResponse.token, isNotEmpty);
 
       // Both tokens should work for DB operations
-      db.token = loginToken;
+      db.token = loginResponse.token;
       await db.openDB('ignored', dbName: 'auth_login_test', onCreate: () async {
         await db.execute('''
           CREATE TABLE IF NOT EXISTS "todos" (

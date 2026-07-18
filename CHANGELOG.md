@@ -1,3 +1,6 @@
+## 1.4.4
+- Added support for refreshToken in gRPC authentication
+
 ## 1.4.3
 - Added `includeBinaryField` callback to `TableInfo` for per-row conditional binary field encoding
 
