@@ -649,7 +649,11 @@ class SyncRepository {
   Future<void> _logPreviouslyInsertedData({required String dbName}) async {
     for (final entry in sqliteWrapperSync.tableInfos.entries) {
       final String tableName = entry.key;
-      final String sql = "SELECT ${entry.value.keyField} FROM $tableName";
+      final TableInfo tableInfo = entry.value;
+      final filter = tableInfo.rowFilter != null
+          ? " WHERE ${tableInfo.rowFilter}"
+          : "";
+      final String sql = "SELECT ${tableInfo.keyField} FROM $tableName$filter";
       List<String> rowguids =
           List<String>.from(await sqliteWrapperSync.query(sql, dbName: dbName));
       for (String rowguid in rowguids) {

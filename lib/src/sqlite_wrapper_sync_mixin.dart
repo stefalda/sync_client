@@ -257,17 +257,18 @@ mixin SQLiteWrapperSyncMixin on SQLiteWrapperBase {
       final TableInfo? tableInfo = tableInfos[tablename];
       if (tableInfo == null) continue;
       await _insertInitialSyncData(tablename, tableInfo.keyField, now,
-          dbName: dbName);
+          rowFilter: tableInfo.rowFilter, dbName: dbName);
     }
   }
 
   /// Perform the insert for the specific table
   Future<void> _insertInitialSyncData(
       String tablename, String keyfield, DateTime now,
-      {required String dbName}) async {
+      {String? rowFilter, required String dbName}) async {
+    final filter = rowFilter != null ? " AND $rowFilter" : "";
     await execute(
         """INSERT INTO sync_data (tablename, rowguid, operation, clientdate)
-                    SELECT '$tablename', $tablename.$keyfield, 'I', ? FROM $tablename LEFT JOIN sync_data on sync_data.rowguid=$tablename.$keyfield WHERE sync_data.rowguid is null""",
+                    SELECT '$tablename', $tablename.$keyfield, 'I', ? FROM $tablename LEFT JOIN sync_data on sync_data.rowguid=$tablename.$keyfield WHERE sync_data.rowguid is null$filter""",
         params: [now.millisecondsSinceEpoch], dbName: dbName);
   }
 

@@ -34,6 +34,7 @@ The `SQLiteWrapperSync` must be instantiated by passing a configuration of all t
    - `encryptedFields` is a list of fields that should be encrypted before sending data to the server.
     - `binaryFields` is a list of fields that should be encoded in base64.
     - `includeBinaryField` (optional) is a per-row callback `bool Function(String fieldName, Map<String, dynamic> rowData)` to conditionally exclude binary fields from the sync payload. Return `false` to skip encoding/including the field for that row.
+    - `rowFilter` (optional) is a SQL WHERE clause (without the WHERE keyword) that restricts which rows are eligible for sync logging. For example, `"custom = 1"` logs only rows where the `custom` column is 1. When set, both `_logPreviouslyInsertedData` (called during registration) and `insertInitialSyncData` apply the filter, so non-matching rows never enter the sync queue. When omitted (default), all rows are tracked — backward compatible.
 
 ```dart
 SQLiteWrapperSync db = SQLiteWrapperSync(tableInfos: {

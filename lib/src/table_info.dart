@@ -29,6 +29,18 @@ class TableInfo {
   final bool Function(String fieldName, Map<String, dynamic> rowData)?
       includeBinaryField;
 
+  /// Optional SQL WHERE clause (without the WHERE keyword) to filter which rows
+  /// are eligible for sync logging.
+  ///
+  /// When present, queries that select rows for sync tracking
+  /// (`_logPreviouslyInsertedData`, `_insertInitialSyncData`) append
+  /// `WHERE $rowFilter` to exclude non-matching rows.
+  ///
+  /// Example: `"custom = 1"` — only rows with custom = 1 are tracked.
+  ///
+  /// When null (default), all rows are eligible — backward compatible.
+  final String? rowFilter;
+
   TableInfo({
     required this.keyField,
     this.binaryFields = const [],
@@ -36,6 +48,7 @@ class TableInfo {
     //  required this.externalKeys,
     this.aliasesFields = const {},
     this.includeBinaryField,
+    this.rowFilter,
     // this.booleanFields = const []
   });
 }
