@@ -1,3 +1,6 @@
+## 1.4.6
+- Upgraded dependencies
+
 ## 1.4.5
 - Changed gzip compression for the web version
 
