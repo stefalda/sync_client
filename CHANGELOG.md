@@ -1,3 +1,6 @@
+## 1.5.1
+- Upgraded sqlite_wrapper version
+
 ## 1.5.0
 - Added `rowFilter` to `TableInfo` — an optional SQL WHERE clause to restrict which rows are eligible for sync logging (e.g., `"custom = 1"`). Both `_logPreviouslyInsertedData` and `insertInitialSyncData` apply the filter, so non-matching rows never enter the sync queue.
 - Updated README with `rowFilter` documentation.
