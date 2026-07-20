@@ -1,3 +1,6 @@
+## 1.5.2
+- Upgraded sqlite_wrapper version to 0.6.0
+
 ## 1.5.1
 - Upgraded sqlite_wrapper version
 
