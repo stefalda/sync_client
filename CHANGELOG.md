@@ -1,3 +1,6 @@
+## 1.5.4
+- Updated sqlite_wrapper dependency to 0.7.0
+
 ## 1.5.3
 - Updated sqlite_wrapper dependency to 0.6.1 (fixes web build with `GrpcOrGrpcWebClientChannel` type)
 
