@@ -1,3 +1,8 @@
+## 1.5.5
+- **Push spezzato anche per dimensione**: oltre al limite di 100 righe per richiesta, i push vengono divisi in base ai byte stimati (`kMaxBytesPerPush`, 8 MB). Con librerie ricche di immagini (cover libri, foto autori) i 100 righe fisse producevano body oltre il limite del server (10-50 MB) e il push falliva con `request entity too large`, lasciando la sincronizzazione a metà e la coda `sync_data` piena ogni volta.
+- Nuove funzioni pubbliche `splitForPush` e `estimateSyncDataSize` (test: `test/repository/push_chunking_test.dart`).
+- Una singola riga più grande del limite viene inviata da sola (non è spezzabile).
+
 ## 1.5.4
 - Updated sqlite_wrapper dependency to 0.7.0
 

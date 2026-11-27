@@ -17,6 +17,72 @@ import 'package:sync_client/sync_client.dart' hide Operation;
 typedef SyncController = StreamController<SyncProgress>;
 const kMaxDataToSendAtOnce = 100;
 
+/// Dimensione massima **stimata** (byte di JSON, prima della compressione) per
+/// singola richiesta di push.
+///
+/// Il limite per numero di righe non basta: i campi binari (cover, foto) sono
+/// inviati in base64 dentro `rowData`, quindi 100 righe possono valere pochi KB
+/// oppure decine di MB. Il body del server (express) ha un limite (10-50 MB a
+/// seconda della configurazione) e un chunk troppo grande fallisce con
+/// "request entity too large", lasciando la sync a metà.
+///
+/// 8 MB resta sotto il default di 10 MB del server e lascia margine per
+/// l'envelope; una riga singola più grande del limite viene inviata da sola.
+const kMaxBytesPerPush = 8 * 1024 * 1024;
+
+/// Stima conservativa della dimensione JSON di una riga da inviare.
+///
+/// Non serializza (sarebbe costoso su librerie grandi): somma le chiavi e i
+/// valori, contando 1 byte per carattere delle stringhe (dove il base64 dei
+/// blob è il contributo dominante) e una costante per i tipi scalari.
+int estimateSyncDataSize(SyncData data) {
+  // operation + rowguid + tablename + clientdate + parentesi/virgole
+  var size = 128;
+  final rowData = data.rowData;
+  if (rowData == null) return size;
+  rowData.forEach((key, value) {
+    size += key.length + 4; // "key": value
+    if (value is String) {
+      size += value.length;
+    } else if (value is List<int>) {
+      size += value.length;
+    } else {
+      size += 16;
+    }
+  });
+  return size;
+}
+
+/// Spezza le modifiche da inviare in chunk che rispettano sia il numero massimo
+/// di righe ([maxRows]) sia la dimensione massima stimata ([maxBytes]).
+///
+/// Una singola riga più grande di [maxBytes] viene messa in un chunk da sola:
+/// non è ulteriormente spezzabile e il server deve accettarla.
+List<List<SyncData>> splitForPush(
+  List<SyncData> data, {
+  int maxRows = kMaxDataToSendAtOnce,
+  int maxBytes = kMaxBytesPerPush,
+}) {
+  final chunks = <List<SyncData>>[];
+  var current = <SyncData>[];
+  var currentBytes = 0;
+
+  for (final item in data) {
+    final itemBytes = estimateSyncDataSize(item);
+    final full = current.length >= maxRows ||
+        (current.isNotEmpty && currentBytes + itemBytes > maxBytes);
+    if (full) {
+      chunks.add(current);
+      current = <SyncData>[];
+      currentBytes = 0;
+    }
+    current.add(item);
+    currentBytes += itemBytes;
+  }
+  if (current.isNotEmpty) chunks.add(current);
+  return chunks;
+}
+
 class SyncRepository {
   final SQLiteWrapperSyncMixin sqliteWrapperSync;
   final String serverUrl;
@@ -197,37 +263,32 @@ class SyncRepository {
 
       // Do multiple push with partial data to avoid sending too many data at once
 
-      // Perform the push of the remaining data
+      // Perform the push of the remaining data.
+      // Lo split considera anche la dimensione: 100 righe con blob in base64
+      // possono superare il limite del body del server.
       _debugPrint("Time to PUSH...");
       late SyncInfo syncInfo;
-      // Not too much data... send everything
-      if (clientDataList.length < kMaxDataToSendAtOnce) {
-        // Send all at once
-        syncInfo = await _push(clientId, lastSync, clientDataList,
-            dbName: dbName, isPartial: false);
-      } else {
-        int from = 0;
-
-        while (from < clientDataList.length) {
-          int to = from + kMaxDataToSendAtOnce;
-          if (to > clientDataList.length) {
-            to = clientDataList.length;
-          }
-          //Sub
-          final subDataList = clientDataList.sublist(from, to);
-          syncInfo = await _push(clientId, lastSync, subDataList,
-              dbName: dbName, isPartial: (to < clientDataList.length));
+      final pushChunks = splitForPush(clientDataList);
+      if (pushChunks.isEmpty) {
+        // Nessuna modifica: un solo push "vuoto" per aggiornare lastSync.
+        pushChunks.add(<SyncData>[]);
+      }
+      var sentRows = 0;
+      for (var index = 0; index < pushChunks.length; index++) {
+        final chunk = pushChunks[index];
+        syncInfo = await _push(clientId, lastSync, chunk,
+            dbName: dbName, isPartial: index < pushChunks.length - 1);
+        sentRows += chunk.length;
+        if (pushChunks.length > 1) {
           // UPDATE THE STATUS
           syncController.add(SyncProgress(
             status: SyncStatus.pushing,
-            message: 'Sent $from/${clientDataList.length}',
-            processedItems: from,
+            message: 'Sent $sentRows/${clientDataList.length}',
+            processedItems: sentRows,
             totalItems: clientDataList.length,
           ));
           await Future.delayed(Duration.zero); // Update UI
-          print("Pushing $from/${clientDataList.length}");
-          from = to;
-          //TODO - DELETE ONLY PUSHED DATA
+          print("Pushing $sentRows/${clientDataList.length}");
         }
       }
 
