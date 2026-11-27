@@ -13,7 +13,15 @@ class SyncDetails {
   /// presente sul server
   List<SyncData> data = List.empty(growable: true);
 
+  /// Paginazione: true se il server ha altre modifiche oltre a questa pagina.
+  bool hasMore = false;
+
+  /// Cursore da rimandare per ottenere la pagina successiva.
+  int nextCursor = 0;
+
   SyncDetails.fromJson(Map<String, dynamic> json) {
+    hasMore = json['hasMore'] == true;
+    nextCursor = (json['nextCursor'] as num?)?.toInt() ?? 0;
     outdatedRowsGuid = json['outdatedRowsGuid'].cast<String>();
     if (json['data'] != null) {
       json['data'].forEach((v) {

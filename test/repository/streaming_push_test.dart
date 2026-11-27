@@ -222,4 +222,78 @@ void main() {
         .toSet();
     expect(pushedGuids, equals({keep}));
   });
+
+  test('un push interrotto lascia in coda solo il residuo', () async {
+    // Limite piccolo per avere più chunk: 6 righe da 5 KB con tetto 12 KB.
+    final resumable = SyncRepository(
+      sqliteWrapperSync: db,
+      serverUrl: 'http://localhost:8076',
+      realm: 'TEST_REALM',
+      customHttpHelper: fakeHttp,
+      maxBytesPerPush: 12 * 1024,
+    );
+
+    final guids = <String>[];
+    for (var i = 0; i < 6; i++) {
+      final docid = db.newUUID();
+      guids.add(docid);
+      await db.insert({
+        'docid': docid,
+        'title': 'resumable $i',
+        'payload': bytesOf(5 * 1024, i),
+        'custom': 1,
+      }, 'docs', dbName: 'test');
+    }
+    fakeHttp.clearCalls();
+
+    // Primo push ok, secondo in errore (rete che cade a metà).
+    fakeHttp.queueResponse(
+      RegExp(r'/push/([^/]+)/([^/]+)$'),
+      {'lastSync': DateTime.now().millisecondsSinceEpoch},
+    );
+    fakeHttp.queueResponse(
+      RegExp(r'/push/([^/]+)/([^/]+)$'),
+      Exception('rete persa'),
+    );
+
+    await expectLater(resumable.sync(dbName: 'test'), throwsA(anything));
+
+    final firstPush = fakeHttp.calls
+        .firstWhere((c) => c.url.contains('/push/'));
+    final firstChunk = ((jsonDecode(firstPush.body as String)
+            as Map<String, dynamic>)['changes'] as List)
+        .map((c) => (c as Map)['rowguid'] as String)
+        .toSet();
+
+    final pending = await db.query(
+      'SELECT rowguid, id FROM sync_data ORDER BY id',
+      dbName: 'test',
+    );
+    final pendingGuids = pending.map((r) => r['rowguid'] as String).toSet();
+
+    // Le righe già inviate sono state tolte dalla coda: resta solo il residuo.
+    expect(pendingGuids.intersection(firstChunk), isEmpty);
+    expect(pendingGuids, equals(guids.toSet().difference(firstChunk)));
+    expect(pendingGuids.length, lessThan(guids.length));
+
+    // Al rientro la sync riparte dal residuo e completa.
+    fakeHttp.clearCalls();
+    await resumable.sync(dbName: 'test');
+
+    expect(
+      await db.query(
+        'SELECT COUNT(*) FROM sync_data',
+        singleResult: true,
+        dbName: 'test',
+      ),
+      0,
+    );
+    final pushedAfter = fakeHttp.calls
+        .where((c) => c.url.contains('/push/'))
+        .map((c) => jsonDecode(c.body as String) as Map<String, dynamic>)
+        .expand((b) => (b['changes'] as List))
+        .map((c) => (c as Map)['rowguid'] as String)
+        .toSet();
+    expect(pushedAfter, equals(guids.toSet().difference(firstChunk)));
+  });
 }

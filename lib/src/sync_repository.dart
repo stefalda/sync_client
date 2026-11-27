@@ -38,6 +38,13 @@ const kMaxBytesPerPush = 8 * 1024 * 1024;
 /// dell'intera libreria.
 const kRowsLoadedAtOnce = 8;
 
+/// Righe massime per pagina di pull.
+const kPullPageRows = 200;
+
+/// Byte massimi (stimati) di `rowData` per pagina di pull: il server può
+/// restituirne meno, così una pagina di cover non pesa centinaia di MB.
+const kPullPageMaxBytes = 8 * 1024 * 1024;
+
 /// Stima conservativa della dimensione JSON di una riga da inviare.
 ///
 /// Non serializza (sarebbe costoso su librerie grandi): somma le chiavi e i
@@ -108,6 +115,17 @@ class SyncRepository {
   /// Limite (stimato) di byte per singola richiesta di push.
   final int maxBytesPerPush;
 
+  /// Righe massime per pagina di pull.
+  final int maxRowsPerPull;
+
+  /// Byte massimi di `rowData` per pagina di pull.
+  final int maxBytesPerPull;
+
+  /// Se true le righe già inviate vengono tolte da `sync_data` subito dopo il
+  /// push riuscito: un'interruzione (app in background, rete) fa ripartire solo
+  /// le modifiche residue invece dell'intera libreria.
+  final bool deletePushedRowsProgressively;
+
   //Constructor
   SyncRepository(
       {required this.sqliteWrapperSync,
@@ -115,7 +133,10 @@ class SyncRepository {
       required this.realm,
       HttpHelper? customHttpHelper,
       this.maxRowsPerPush = kMaxDataToSendAtOnce,
-      this.maxBytesPerPush = kMaxBytesPerPush})
+      this.maxBytesPerPush = kMaxBytesPerPush,
+      this.maxRowsPerPull = kPullPageRows,
+      this.maxBytesPerPull = kPullPageMaxBytes,
+      this.deletePushedRowsProgressively = true})
       : httpHelper = customHttpHelper ?? HttpHelper() {
     authenticationHelper = AuthenticationHelper(
         serverUrl: serverUrl,
@@ -298,6 +319,9 @@ class SyncRepository {
         Future<void> flushChunk({required bool isPartial}) async {
           syncInfo = await _push(clientId, lastSync, chunk,
               dbName: dbName, isPartial: isPartial);
+          if (deletePushedRowsProgressively) {
+            await _deletePushedRows(chunk, dbName: dbName);
+          }
           sentRows += chunk.length;
           // Il chunk contiene copie con i rowData: sostituendolo si liberano.
           chunk = <SyncData>[];
@@ -466,40 +490,63 @@ class SyncRepository {
       {required String dbName}) async {
     // The rowData are not needed in the pull, remove them
     try {
-      final ClientChanges clientChanges = ClientChanges()
-        ..clientId = clientId
-        ..lastSync = lastSync
-        ..changes = syncDataList;
+      var cursor = 0;
+      var pages = 0;
+      var downloaded = 0;
 
-      final json = jsonEncode(clientChanges.toMap(skipRowData: true));
-      // This call unexptectly returns even if it's awaited
-      dynamic result = await authenticationHelper.authenticatedCall(
-          "$serverUrl/pull/$realm/$clientId", {},
-          body: json,
-          method: "POST",
-          dbName: dbName,
-          isPushOrPull: true,
-          syncController: syncController);
+      while (true) {
+        final ClientChanges clientChanges = ClientChanges()
+          ..clientId = clientId
+          ..lastSync = lastSync
+          ..limit = maxRowsPerPull
+          ..maxBytes = maxBytesPerPull
+          ..cursor = cursor
+          ..changes = syncDataList;
 
-      api_sync_details.SyncDetails syncDetails =
-          api_sync_details.SyncDetails.fromJson(result);
+        final json = jsonEncode(clientChanges.toMap(skipRowData: true));
+        // This call unexptectly returns even if it's awaited
+        dynamic result = await authenticationHelper.authenticatedCall(
+            "$serverUrl/pull/$realm/$clientId", {},
+            body: json,
+            method: "POST",
+            dbName: dbName,
+            isPushOrPull: true,
+            syncController: syncController);
 
-      syncController.add(SyncProgress(
-          status: SyncStatus.pulling,
-          message: 'Remote changes: ${syncDataList.length}',
-          totalItems: syncDataList.length,
-          processedItems: 0));
-      await Future.delayed(Duration.zero); // Update UI
+        api_sync_details.SyncDetails syncDetails =
+            api_sync_details.SyncDetails.fromJson(result);
 
-      // Now remove from syncDataList the keys indicated by the server
-      for (var rowguid in syncDetails.outdatedRowsGuid!) {
-        syncDataList.removeWhere((element) => element.rowguid == rowguid);
+        // Now remove from syncDataList the keys indicated by the server
+        for (var rowguid in syncDetails.outdatedRowsGuid!) {
+          syncDataList.removeWhere((element) => element.rowguid == rowguid);
+        }
+
+        // Insert into the DB the new rows sent by the server (subito, senza
+        // tenere in memoria tutte le pagine).
+        await _importServerData(syncDetails.data, dbName: dbName);
+
+        pages++;
+        downloaded += syncDetails.data.length;
+        _debugPrint(
+            "Pull page $pages: ${syncDetails.data.length} changes, "
+            "total $downloaded, hasMore ${syncDetails.hasMore}");
+        syncController.add(SyncProgress(
+            status: SyncStatus.pulling,
+            message: 'Downloaded $downloaded changes',
+            totalItems: downloaded,
+            processedItems: downloaded));
+        await Future.delayed(Duration.zero); // Update UI
+
+        if (!syncDetails.hasMore) break;
+        // Difesa contro un server che non fa avanzare il cursore.
+        if (syncDetails.nextCursor <= cursor) {
+          _debugPrint(
+              "Pull: nextCursor non avanza (${syncDetails.nextCursor} <= $cursor), mi fermo");
+          break;
+        }
+        cursor = syncDetails.nextCursor;
       }
-      _debugPrint(
-          "Pull Results: to be deleted from push ${syncDetails.outdatedRowsGuid!.length} - to update from the server ${syncDetails.data.length}");
 
-      // Insert into the DB the new rows sent by the server
-      await _importServerData(syncDetails.data, dbName: dbName);
       // Return the remaining syncData
       return syncDataList;
     } on Exception catch (e) {
@@ -652,8 +699,8 @@ class SyncRepository {
   Future<List<SyncData>> _getPendingChanges({required String dbName}) async {
     final List<SyncData> changes = List.empty(growable: true);
     for (final tableName in sqliteWrapperSync.tableInfos.keys) {
-      final sql = """SELECT sd.operation, sd.clientdate as clientdate,
-                            sd.rowguid as rowguid
+      final sql = """SELECT sd.id as id, sd.operation,
+                            sd.clientdate as clientdate, sd.rowguid as rowguid
          FROM sync_data sd
          WHERE sd.id IN (
             SELECT MAX(id) FROM sync_data WHERE tablename=? GROUP by tablename, rowguid
@@ -667,6 +714,7 @@ class SyncRepository {
       for (final row in rows) {
         final map = row as Map;
         changes.add(SyncData(
+          id: map["id"] as int,
           operation: map["operation"] as String,
           rowguid: map["rowguid"] as String,
           tablename: tableName,
@@ -719,10 +767,28 @@ class SyncRepository {
     return result;
   }
 
+  /// Toglie da `sync_data` le righe appena inviate con successo.
+  ///
+  /// Il push è transazionale lato server: quando risponde 200 le modifiche sono
+  /// già persistite, quindi toglierle in locale non perde nulla e rende la sync
+  /// ripartibile (un'interruzione fa ripartire solo il residuo).
+  Future<void> _deletePushedRows(List<SyncData> chunk,
+      {required String dbName}) async {
+    final ids = chunk.map((e) => e.id).whereType<int>().toList();
+    if (ids.isEmpty) return;
+    final placeholders = List.filled(ids.length, '?').join(',');
+    await sqliteWrapperSync.execute(
+      'DELETE FROM sync_data WHERE id IN ($placeholders)',
+      params: ids,
+      dbName: dbName,
+    );
+  }
+
   /// Copia della modifica con i dati della riga, per non agganciare i blob ai
   /// metadati che vivono per tutta la durata della sync.
   SyncData _copyWithRowData(SyncData item, Map<String, dynamic> rowData) {
     return SyncData(
+      id: item.id,
       operation: item.operation,
       rowguid: item.rowguid,
       tablename: item.tablename,

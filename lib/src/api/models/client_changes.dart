@@ -7,6 +7,11 @@ class ClientChanges {
   late List<SyncData> changes;
   int isPartial = 0;
 
+  /// Paginazione del pull (null = comportamento storico, tutto in una risposta).
+  int? limit;
+  int? maxBytes;
+  int? cursor;
+
   static ClientChanges fromMap(Map jsonData) {
     return ClientChanges()
       ..clientId = jsonData['clientId']
@@ -19,11 +24,17 @@ class ClientChanges {
   }
 
   Map<String, Object> toMap({bool skipRowData = false}) {
-    return {
+    final map = <String, Object>{
       'clientId': clientId,
       'lastSync': lastSync,
       'isPartial': isPartial,
       'changes': changes.map((e) => e.toMap(skipRowData: skipRowData)).toList()
     };
+    // Inviati solo se valorizzati: un server vecchio ignora i campi che non
+    // conosce e continua a rispondere con tutto.
+    if (limit != null) map['limit'] = limit!;
+    if (maxBytes != null) map['maxBytes'] = maxBytes!;
+    if (cursor != null) map['cursor'] = cursor!;
+    return map;
   }
 }
