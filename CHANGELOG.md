@@ -1,19 +1,19 @@
 ## 1.6.2
-- **Retry sul rate limit**: una risposta 429 di `/push` o `/pull` viene ritentata fino a 3 volte con attesa crescente (`rateLimitBaseDelay`, default 30s). Prima una libreria grande (chunk da 8 MB, più di 30 richieste al minuto) si interrompeva a metà.
-- Test: caso 429 + retry in `streaming_push_test.dart`.
+- **Rate limit retry**: a 429 from `/push` or `/pull` is retried up to 3 times with increasing backoff (`rateLimitBaseDelay`, default 30s). Previously a large library (8 MB chunks, more than 30 requests per minute) aborted mid-sync.
+- Test: 429 + retry case in `streaming_push_test.dart`.
 
 ## 1.6.1
-- **Fix**: se la configurazione di sync sparisce **durante** una sync (logout, reset o cancellazione concorrente), il cleanup interno (`_cancelSync`) esplodeva con `TypeError: type 'Null' is not a subtype of type 'FutureOr<SyncDetails>'`, sostituendo l'errore vero. Ora `_getTokenFromDB` è null-safe e le chiamate autenticate falliscono con `SyncException(syncConfigurationMissing)`.
+- **Fix**: if the sync configuration disappears **during** a sync (logout, reset or concurrent deletion), the internal cleanup (`_cancelSync`) crashed with `TypeError: type 'Null' is not a subtype of type 'FutureOr<SyncDetails>'`, hiding the real error. `_getTokenFromDB` is now null-safe and authenticated calls fail with `SyncException(syncConfigurationMissing)`.
 - Test: `test/repository/missing_config_test.dart`.
 
 ## 1.6.0
-- **Push streaming**: in memoria restano solo i metadati delle modifiche in coda; i `rowData` con i blob vengono letti dal DB a blocchi (`kRowsLoadedAtOnce`, 8 righe) appena prima dell'invio. Prima l'intera libreria (blob + base64) veniva materializzata all'inizio della sync: con 90 MB di copertine il picco superava i 700 MB.
-- **Push ripartibile**: le righe già inviate vengono tolte da `sync_data` subito dopo il push riuscito (`deletePushedRowsProgressively`). Un'interruzione (app in background, rete che cade) fa ripartire solo il residuo invece dell'intera libreria.
-- **Pull paginato**: `_pull` chiede le pagine al server (`limit`, `maxBytes`, `cursor`) e importa ogni pagina subito. La memoria del client è legata alla pagina, non alla libreria. Con un server che non supporta la paginazione (risposta senza `hasMore`) si comporta come prima: una sola richiesta.
-- Limiti configurabili nel costruttore: `maxRowsPerPush`, `maxBytesPerPush`, `maxRowsPerPull`, `maxBytesPerPull`.
-- Le righe che il server dichiara `outdatedRowsGuid` non vengono nemmeno lette dal DB.
-- **Token rinnovato solo alla scadenza**: `accessTokenExpiration` non veniva mai salvata (codice commentato), quindi `_getToken` faceva `_refreshToken` prima di **ogni** chiamata autenticata: il doppio delle richieste, e su `/login` (limite 10/min) un blocco con le sync paginate. Ora la scadenza si legge da `expires_on` o dal claim `exp` del JWT e il rinnovo avviene solo entro il minuto precedente la scadenza (se sconosciuta si gestisce il 401).
-- Test: `streaming_push_test.dart` (6 casi), `pull_pagination_test.dart` (4 casi), `push_chunking_test.dart` (10 casi), `token_refresh_test.dart` (4 casi).
+- **Streaming push**: only change metadata is kept in memory; `rowData` with blobs are read from the DB in batches (`kRowsLoadedAtOnce`, 8 rows) right before being sent. Previously the whole library (blobs + base64) was materialized at the start of the sync: with 90 MB of covers the peak exceeded 700 MB.
+- **Resumable push**: rows already sent are removed from `sync_data` right after a successful push (`deletePushedRowsProgressively`). An interruption (app backgrounded, network drop) resumes from the remaining rows instead of the whole library.
+- **Paginated pull**: `_pull` requests pages (`limit`, `maxBytes`, `cursor`) and imports each page immediately. Client memory is bound to the page, not to the library. With a server without pagination support (no `hasMore` in the response) it behaves as before: a single request.
+- Constructor limits: `maxRowsPerPush`, `maxBytesPerPush`, `maxRowsPerPull`, `maxBytesPerPull`.
+- Rows reported in `outdatedRowsGuid` are not even read from the DB.
+- **Token refreshed only on expiry**: `accessTokenExpiration` was never stored (commented-out code), so `_getToken` called `_refreshToken` before **every** authenticated call: double the requests, and `/login` (10/min limit) throttled paginated syncs. The expiry is now read from `expires_on` or from the JWT `exp` claim, and the refresh happens only within one minute of expiry (unknown expiry → rely on 401).
+- Tests: `streaming_push_test.dart` (6), `pull_pagination_test.dart` (4), `push_chunking_test.dart` (10), `token_refresh_test.dart` (4).
 
 ## 1.5.4
 - Updated sqlite_wrapper dependency to 0.7.0
