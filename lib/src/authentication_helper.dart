@@ -71,10 +71,18 @@ class AuthenticationHelper {
     SyncDetails detail = await _getTokenFromDB(dbName: dbName);
     if (detail.accessToken == null) {
       detail = await _registerForAToken(detail, dbName: dbName);
+      return detail.accessToken;
     }
-    if (DateTime.now()
-        .toUtc()
-        .isAfter(detail.accessTokenExpiration ?? DateTime(0))) {
+    // Rinnova solo se il token sta per scadere (margine di 1 minuto).
+    // Prima la scadenza non veniva mai salvata e il token veniva rinnovato a
+    // OGNI chiamata: con le sync paginate significava una richiesta in più per
+    // ogni pagina (e il rate limit su /login è di 10 al minuto).
+    // Se la scadenza è sconosciuta non si rinnova: si gestisce il 401.
+    final expiration = detail.accessTokenExpiration;
+    if (expiration != null &&
+        DateTime.now()
+            .toUtc()
+            .isAfter(expiration.toUtc().subtract(const Duration(minutes: 1)))) {
       detail = await _refreshToken(detail, dbName: dbName);
     }
     return detail.accessToken;
@@ -84,6 +92,45 @@ class AuthenticationHelper {
   Future<void> _forceRefreshToken({required String dbName}) async {
     SyncDetails detail = await _getTokenFromDB(dbName: dbName);
     await _refreshToken(detail, dbName: dbName);
+  }
+
+  /// Scadenza del token: `expires_on` (ms) se il server lo manda, altrimenti il
+  /// claim `exp` del JWT (il server in modalità JWT restituisce solo i due
+  /// token, senza scadenza esplicita). null = sconosciuta.
+  DateTime? _expirationFromTokenData(Map<String, dynamic> tokenData) {
+    final expiresOn = tokenData['expires_on'];
+    if (expiresOn is num) {
+      return DateTime.fromMillisecondsSinceEpoch(expiresOn.toInt(),
+          isUtc: true);
+    }
+    final accessToken = tokenData['accessToken'] ?? tokenData['access_token'];
+    final fromJwt = accessToken is String ? _expFromJwt(accessToken) : null;
+    if (fromJwt != null) return fromJwt;
+    final expiresIn = tokenData['expires_in'];
+    if (expiresIn is num) {
+      return DateTime.now().toUtc().add(Duration(seconds: expiresIn.toInt()));
+    }
+    return null;
+  }
+
+  /// Legge il claim `exp` (secondi) dal payload di un JWT.
+  DateTime? _expFromJwt(String token) {
+    final parts = token.split('.');
+    if (parts.length < 2) return null;
+    try {
+      final payload =
+          utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+      final decoded = jsonDecode(payload);
+      if (decoded is Map && decoded['exp'] is num) {
+        return DateTime.fromMillisecondsSinceEpoch(
+          (decoded['exp'] as num).toInt() * 1000,
+          isUtc: true,
+        );
+      }
+    } catch (e) {
+      debugPrint("Impossibile leggere la scadenza del token: $e");
+    }
+    return null;
   }
 
   Future<SyncDetails> _getTokenFromDB({required String dbName}) async {
@@ -153,9 +200,7 @@ class AuthenticationHelper {
           tokenData['accessToken'] ?? tokenData['access_token'];
       syncDetails.refreshToken =
           tokenData['refreshToken'] ?? tokenData['refresh_token'];
-      // syncDetails.accessTokenExpiration = DateTime.fromMillisecondsSinceEpoch(
-      //     tokenData['expires_on'],
-      //     isUtc: true);
+      syncDetails.accessTokenExpiration = _expirationFromTokenData(tokenData);
       await sqliteWrapperSync.save(syncDetails.toMap(), SyncDetails.tableName,
           dbName: dbName, keys: ['clientid']);
       return syncDetails;

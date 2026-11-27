@@ -139,12 +139,13 @@ void main() {
 
     test('sync succeeds with no local changes', () async {
       await repository.sync(dbName: 'test');
-      // Should have called: login, refreshToken, pull, refreshToken, push, cancelSync
-      expect(fakeHttp.callCount, greaterThanOrEqualTo(5));
-      // Verify pull and push were called
+      // login (primo token) + pull + push. Nessun refresh: il token del fake
+      // scade tra un giorno, quindi va riusato (vedi token_refresh_test.dart).
       final urls = fakeHttp.calledUrls;
+      expect(fakeHttp.callCount, greaterThanOrEqualTo(3));
       expect(urls.any((u) => u.contains('/pull/')), isTrue);
       expect(urls.any((u) => u.contains('/push/')), isTrue);
+      expect(urls.where((u) => u.contains('/refreshToken')), isEmpty);
     });
 
     test('sync processes local insert changes', () async {

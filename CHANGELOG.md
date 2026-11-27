@@ -4,7 +4,8 @@
 - **Pull paginato**: `_pull` chiede le pagine al server (`limit`, `maxBytes`, `cursor`) e importa ogni pagina subito. La memoria del client è legata alla pagina, non alla libreria. Con un server che non supporta la paginazione (risposta senza `hasMore`) si comporta come prima: una sola richiesta.
 - Limiti configurabili nel costruttore: `maxRowsPerPush`, `maxBytesPerPush`, `maxRowsPerPull`, `maxBytesPerPull`.
 - Le righe che il server dichiara `outdatedRowsGuid` non vengono nemmeno lette dal DB.
-- Test: `streaming_push_test.dart` (6 casi), `pull_pagination_test.dart` (4 casi), `push_chunking_test.dart` (10 casi).
+- **Token rinnovato solo alla scadenza**: `accessTokenExpiration` non veniva mai salvata (codice commentato), quindi `_getToken` faceva `_refreshToken` prima di **ogni** chiamata autenticata: il doppio delle richieste, e su `/login` (limite 10/min) un blocco con le sync paginate. Ora la scadenza si legge da `expires_on` o dal claim `exp` del JWT e il rinnovo avviene solo entro il minuto precedente la scadenza (se sconosciuta si gestisce il 401).
+- Test: `streaming_push_test.dart` (6 casi), `pull_pagination_test.dart` (4 casi), `push_chunking_test.dart` (10 casi), `token_refresh_test.dart` (4 casi).
 
 ## 1.5.4
 - Updated sqlite_wrapper dependency to 0.7.0
