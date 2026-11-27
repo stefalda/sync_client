@@ -68,7 +68,8 @@ class AuthenticationHelper {
     if (EncryptHelper.secretKey == null) {
       await sqliteWrapperSync.getSecretKey(dbName: dbName);
     }
-    SyncDetails detail = await _getTokenFromDB(dbName: dbName);
+    SyncDetails? detail = await _getTokenFromDB(dbName: dbName);
+    if (detail == null) throw _missingConfiguration();
     if (detail.accessToken == null) {
       detail = await _registerForAToken(detail, dbName: dbName);
       return detail.accessToken;
@@ -90,7 +91,8 @@ class AuthenticationHelper {
 
   /// Force a refresh token if the server as asked for it
   Future<void> _forceRefreshToken({required String dbName}) async {
-    SyncDetails detail = await _getTokenFromDB(dbName: dbName);
+    final detail = await _getTokenFromDB(dbName: dbName);
+    if (detail == null) throw _missingConfiguration();
     await _refreshToken(detail, dbName: dbName);
   }
 
@@ -133,11 +135,22 @@ class AuthenticationHelper {
     return null;
   }
 
-  Future<SyncDetails> _getTokenFromDB({required String dbName}) async {
+  /// Legge la configurazione di sync dal DB. `null` se non esiste più (logout,
+  /// reset o cancellazione durante una sync in corso): prima il cast implicito
+  /// faceva esplodere il cleanup con un TypeError.
+  Future<SyncDetails?> _getTokenFromDB({required String dbName}) async {
     const sql = "SELECT * FROM sync_details";
-    return await sqliteWrapperSync.query(sql,
-        singleResult: true, dbName: dbName, fromMap: SyncDetails.fromDB);
+    final row = await sqliteWrapperSync.query(sql,
+        singleResult: true, dbName: dbName);
+    if (row == null) return null;
+    return SyncDetails.fromDB(row as Map);
   }
+
+  /// Errore pulito quando la configurazione non c'è più.
+  SyncException _missingConfiguration() => SyncException(
+        "Sync is not configured anymore",
+        type: SyncExceptionType.syncConfigurationMissing,
+      );
 
   // Make a call in SimpleAuthentication
   Future<SyncDetails> _registerForAToken(SyncDetails syncDetails,

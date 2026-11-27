@@ -1,3 +1,7 @@
+## 1.6.1
+- **Fix**: se la configurazione di sync sparisce **durante** una sync (logout, reset o cancellazione concorrente), il cleanup interno (`_cancelSync`) esplodeva con `TypeError: type 'Null' is not a subtype of type 'FutureOr<SyncDetails>'`, sostituendo l'errore vero. Ora `_getTokenFromDB` è null-safe e le chiamate autenticate falliscono con `SyncException(syncConfigurationMissing)`.
+- Test: `test/repository/missing_config_test.dart`.
+
 ## 1.6.0
 - **Push streaming**: in memoria restano solo i metadati delle modifiche in coda; i `rowData` con i blob vengono letti dal DB a blocchi (`kRowsLoadedAtOnce`, 8 righe) appena prima dell'invio. Prima l'intera libreria (blob + base64) veniva materializzata all'inizio della sync: con 90 MB di copertine il picco superava i 700 MB.
 - **Push ripartibile**: le righe già inviate vengono tolte da `sync_data` subito dopo il push riuscito (`deletePushedRowsProgressively`). Un'interruzione (app in background, rete che cade) fa ripartire solo il residuo invece dell'intera libreria.
