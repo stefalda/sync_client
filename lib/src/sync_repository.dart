@@ -30,6 +30,14 @@ const kMaxDataToSendAtOnce = 100;
 /// l'envelope; una riga singola più grande del limite viene inviata da sola.
 const kMaxBytesPerPush = 8 * 1024 * 1024;
 
+/// Quante righe vengono lette dal DB per volta durante il push.
+///
+/// Il push è "streaming": in memoria restano solo i metadati delle modifiche in
+/// coda e i `rowData` (blob inclusi) delle righe del blocco in corso. Con blob
+/// da 2 MB e blocchi da 8 righe il picco è di poche decine di MB invece
+/// dell'intera libreria.
+const kRowsLoadedAtOnce = 8;
+
 /// Stima conservativa della dimensione JSON di una riga da inviare.
 ///
 /// Non serializza (sarebbe costoso su librerie grandi): somma le chiavi e i
@@ -94,12 +102,20 @@ class SyncRepository {
   Stream<SyncProgress> get syncProgress => syncController.stream;
   final HttpHelper httpHelper;
 
+  /// Limite di righe per singola richiesta di push.
+  final int maxRowsPerPush;
+
+  /// Limite (stimato) di byte per singola richiesta di push.
+  final int maxBytesPerPush;
+
   //Constructor
   SyncRepository(
       {required this.sqliteWrapperSync,
       required this.serverUrl,
       required this.realm,
-      HttpHelper? customHttpHelper})
+      HttpHelper? customHttpHelper,
+      this.maxRowsPerPush = kMaxDataToSendAtOnce,
+      this.maxBytesPerPush = kMaxBytesPerPush})
       : httpHelper = customHttpHelper ?? HttpHelper() {
     authenticationHelper = AuthenticationHelper(
         serverUrl: serverUrl,
@@ -249,8 +265,9 @@ class SyncRepository {
 
       syncing = true;
       _debugPrint("Get the changes list from the DB $dbName");
-      // Get the changes list to send
-      List<SyncData> syncDataList = await _getDataToSync(dbName: dbName);
+      // Solo metadati: i rowData (blob inclusi) vengono letti dal DB a blocchi
+      // durante il push, così la memoria non cresce con la libreria.
+      List<SyncData> syncDataList = await _getPendingChanges(dbName: dbName);
       // for (var element in syncDataList) {
       //   _debugPrint(
       //       "Table: ${element.tablename} Operation: ${element.operation} Key: ${element.rowguid}");
@@ -264,31 +281,66 @@ class SyncRepository {
       // Do multiple push with partial data to avoid sending too many data at once
 
       // Perform the push of the remaining data.
-      // Lo split considera anche la dimensione: 100 righe con blob in base64
-      // possono superare il limite del body del server.
+      // I rowData (blob inclusi, in base64) vengono letti dal DB solo per il
+      // blocco in corso: la memoria resta limitata da `kRowsLoadedAtOnce` e
+      // dai limiti per richiesta, non dalla dimensione della libreria.
       _debugPrint("Time to PUSH...");
       late SyncInfo syncInfo;
-      final pushChunks = splitForPush(clientDataList);
-      if (pushChunks.isEmpty) {
-        // Nessuna modifica: un solo push "vuoto" per aggiornare lastSync.
-        pushChunks.add(<SyncData>[]);
-      }
-      var sentRows = 0;
-      for (var index = 0; index < pushChunks.length; index++) {
-        final chunk = pushChunks[index];
-        syncInfo = await _push(clientId, lastSync, chunk,
-            dbName: dbName, isPartial: index < pushChunks.length - 1);
-        sentRows += chunk.length;
-        if (pushChunks.length > 1) {
-          // UPDATE THE STATUS
-          syncController.add(SyncProgress(
-            status: SyncStatus.pushing,
-            message: 'Sent $sentRows/${clientDataList.length}',
-            processedItems: sentRows,
-            totalItems: clientDataList.length,
-          ));
-          await Future.delayed(Duration.zero); // Update UI
-          print("Pushing $sentRows/${clientDataList.length}");
+      final total = clientDataList.length;
+      if (total == 0) {
+        syncInfo = await _push(clientId, lastSync, const <SyncData>[],
+            dbName: dbName, isPartial: false);
+      } else {
+        var sentRows = 0;
+        var chunk = <SyncData>[];
+        var chunkBytes = 0;
+
+        Future<void> flushChunk({required bool isPartial}) async {
+          syncInfo = await _push(clientId, lastSync, chunk,
+              dbName: dbName, isPartial: isPartial);
+          sentRows += chunk.length;
+          // Il chunk contiene copie con i rowData: sostituendolo si liberano.
+          chunk = <SyncData>[];
+          chunkBytes = 0;
+          if (sentRows < total) {
+            syncController.add(SyncProgress(
+              status: SyncStatus.pushing,
+              message: 'Sent $sentRows/$total',
+              processedItems: sentRows,
+              totalItems: total,
+            ));
+            await Future.delayed(Duration.zero); // Update UI
+            print("Pushing $sentRows/$total");
+          }
+        }
+
+        for (var from = 0; from < total; from += kRowsLoadedAtOnce) {
+          final to =
+              (from + kRowsLoadedAtOnce) > total ? total : from + kRowsLoadedAtOnce;
+          final window = clientDataList.sublist(from, to);
+          // Carica i dati (e i blob) solo per queste righe. La mappa restituita
+          // è l'unica copia in vita: i metadati in `clientDataList` non
+          // trattengono mai i blob, quindi la memoria non cresce con la coda.
+          final rowDataByGuid = await _loadRowData(window, dbName: dbName);
+
+          for (final item in window) {
+            final itemWithData = _copyWithRowData(
+              item,
+              rowDataByGuid[item.rowguid] ?? <String, dynamic>{},
+            );
+            final itemBytes = estimateSyncDataSize(itemWithData);
+            final chunkFull = chunk.length >= maxRowsPerPush ||
+                (chunk.isNotEmpty && chunkBytes + itemBytes > maxBytesPerPush);
+            if (chunkFull) {
+              final isLast = sentRows + chunk.length == total;
+              await flushChunk(isPartial: !isLast);
+            }
+            chunk.add(itemWithData);
+            chunkBytes += itemBytes;
+          }
+        }
+        if (chunk.isNotEmpty) {
+          await flushChunk(isPartial: false);
         }
       }
 
@@ -593,95 +645,118 @@ class SyncRepository {
   }
 
   /// Get the data to sync from the client DB
-  Future<List<SyncData>> _getDataToSync({required String dbName}) async {
-    final List<SyncData> syncDataList = List.empty(growable: true);
-    for (String tableName in sqliteWrapperSync.tableInfos.keys) {
-      final TableInfo tableInfo = sqliteWrapperSync.tableInfos[tableName]!;
-      syncDataList.addAll(await _getSyncData(tableName, tableInfo.keyField,
-          dbName: dbName,
-          binaryFields: tableInfo.binaryFields,
-          encryptedFields: tableInfo.encryptedFields,
-          includeBinaryField: tableInfo.includeBinaryField));
-    }
-    return syncDataList;
-  }
-
-  /// Compile the information to send to the server generating the data for the first insert
-  Future<List<SyncData>> _getSyncData(String tableName, String keyField,
-      {required List<String> binaryFields,
-      required List<String> encryptedFields,
-      required String dbName,
-      bool Function(String fieldName, Map<String, dynamic> rowData)?
-          includeBinaryField}) async {
-    if (!sqliteWrapperSync.tableInfos.containsKey(tableName)) {
-      _debugPrint("Unknown table: $tableName");
-      return [];
-    }
-    final TableInfo tableInfo = sqliteWrapperSync.tableInfos[tableName]!;
-    if (tableInfo.keyField != keyField) {
-      _debugPrint("Key field mismatch for table $tableName");
-      return [];
-    }
-    final sql =
-        """SELECT sd.operation, sd.clientdate as clientdate, sd.rowguid as _guid, rowData.*
-         from sync_data sd LEFT JOIN $tableName as rowData on rowData.$keyField=sd.rowguid
-         WHERE
-         sd.id IN (
+  /// Modifiche locali in attesa di push: **solo metadati**.
+  ///
+  /// Per il pull il server non ha bisogno dei dati della riga (`skipRowData`),
+  /// quindi i blob non vengono toccati finché la riga non sta per partire.
+  Future<List<SyncData>> _getPendingChanges({required String dbName}) async {
+    final List<SyncData> changes = List.empty(growable: true);
+    for (final tableName in sqliteWrapperSync.tableInfos.keys) {
+      final sql = """SELECT sd.operation, sd.clientdate as clientdate,
+                            sd.rowguid as rowguid
+         FROM sync_data sd
+         WHERE sd.id IN (
             SELECT MAX(id) FROM sync_data WHERE tablename=? GROUP by tablename, rowguid
             )
-         """;
-    List<SyncData> data = List.empty(growable: true);
-    final rows = await sqliteWrapperSync.query(sql, params: [tableName], dbName: dbName);
-    for (Map<String, dynamic> row in rows) {
-      SyncData syncData = SyncData();
-      syncData.rowguid = row["_guid"] as String;
-      syncData.tablename = tableName;
-      // Dati da sync_data
-      syncData.operation = row["operation"] as String;
-      syncData.clientdate = DateTime.fromMillisecondsSinceEpoch(
-          row["clientdate"] as int,
-          isUtc: true);
-      // Il risultato della query è immutabile quindi ne creo un clone per
-      // manipolarlo
-      final rowData = Map<String, dynamic>.from(row);
-      //Remove from the result the rowguid id
-      rowData.removeWhere((key, value) => key == '_guid');
-      // Lascia solo i dati della riga
-      // Converti in base 64 i binaryFields
-      for (String field in binaryFields) {
-        if (rowData[field] != null) {
-          // Check the per-row callback: if it returns false, exclude the field
-          if (includeBinaryField != null &&
-              !includeBinaryField(field, rowData)) {
-            rowData.remove(field);
-            continue;
-          }
-          rowData[field] = base64Encode(rowData[field] as Uint8List);
-        }
+         ORDER BY sd.id""";
+      final rows = await sqliteWrapperSync.query(
+        sql,
+        params: [tableName],
+        dbName: dbName,
+      );
+      for (final row in rows) {
+        final map = row as Map;
+        changes.add(SyncData(
+          operation: map["operation"] as String,
+          rowguid: map["rowguid"] as String,
+          tablename: tableName,
+          clientdate: DateTime.fromMillisecondsSinceEpoch(
+            map["clientdate"] as int,
+            isUtc: true,
+          ),
+        ));
       }
-      // Remove null values to spare some space
-      rowData.removeWhere((key, value) => value == null);
-      // If some columns should be encrypted go ahead...
-      if (encryptedFields.isNotEmpty) {
-        //debugPrint("PROCEDI A ENCRYPT");
-
-        /// Load the secretKey is it's still not set...
-        if (EncryptHelper.secretKey == null) {
-          await sqliteWrapperSync.getSecretKey(dbName: dbName);
-        }
-        // Should encrypt data
-        for (var fieldName in encryptedFields) {
-          rowData[fieldName] = EncryptHelper.encrypt(rowData[fieldName]);
-        }
-        //debugPrint(rowData);
-      }
-
-      rowData.removeWhere(
-          (key, value) => key == "operation" || key == "clientdate");
-      syncData.rowData = rowData;
-      data.add(syncData);
     }
-    return data;
+    return changes;
+  }
+
+  /// Carica i dati correnti delle righe passate (una query per tabella) e li
+  /// restituisce già pronti per il push: `rowguid` -> `rowData`.
+  ///
+  /// Le righe eliminate localmente non esistono più: la mappa non le contiene,
+  /// e il push manderà `rowData` vuoto (come faceva la LEFT JOIN del vecchio
+  /// caricamento massivo).
+  Future<Map<String, Map<String, dynamic>>> _loadRowData(
+    List<SyncData> items, {
+    required String dbName,
+  }) async {
+    final byTable = <String, List<SyncData>>{};
+    for (final item in items) {
+      final tableName = item.tablename;
+      if (tableName == null) continue;
+      byTable.putIfAbsent(tableName, () => []).add(item);
+    }
+
+    final result = <String, Map<String, dynamic>>{};
+    for (final entry in byTable.entries) {
+      final tableInfo = sqliteWrapperSync.tableInfos[entry.key];
+      if (tableInfo == null) continue;
+      final keyField = tableInfo.keyField;
+      final placeholders = List.filled(entry.value.length, '?').join(',');
+      final rows = await sqliteWrapperSync.query(
+        'SELECT * FROM ${entry.key} WHERE $keyField IN ($placeholders)',
+        params: entry.value.map((e) => e.rowguid).toList(),
+        dbName: dbName,
+      );
+
+      for (final row in rows) {
+        final map = Map<String, dynamic>.from(row as Map);
+        final guid = '${map[keyField]}';
+        await _prepareRowData(map, tableInfo, dbName: dbName);
+        result[guid] = map;
+      }
+    }
+    return result;
+  }
+
+  /// Copia della modifica con i dati della riga, per non agganciare i blob ai
+  /// metadati che vivono per tutta la durata della sync.
+  SyncData _copyWithRowData(SyncData item, Map<String, dynamic> rowData) {
+    return SyncData(
+      operation: item.operation,
+      rowguid: item.rowguid,
+      tablename: item.tablename,
+      clientdate: item.clientdate,
+      rowData: rowData,
+    );
+  }
+
+  /// Converte i campi binari in base64, scarta i null e cifra i campi previsti.
+  Future<void> _prepareRowData(
+    Map<String, dynamic> rowData,
+    TableInfo tableInfo, {
+    required String dbName,
+  }) async {
+    for (final field in tableInfo.binaryFields) {
+      if (rowData[field] == null) continue;
+      final include = tableInfo.includeBinaryField;
+      if (include != null && !include(field, rowData)) {
+        rowData.remove(field);
+        continue;
+      }
+      rowData[field] = base64Encode(rowData[field] as Uint8List);
+    }
+    // Remove null values to spare some space
+    rowData.removeWhere((key, value) => value == null);
+
+    if (tableInfo.encryptedFields.isNotEmpty) {
+      if (EncryptHelper.secretKey == null) {
+        await sqliteWrapperSync.getSecretKey(dbName: dbName);
+      }
+      for (final fieldName in tableInfo.encryptedFields) {
+        rowData[fieldName] = EncryptHelper.encrypt(rowData[fieldName]);
+      }
+    }
   }
 
   /// Memorizza sul DB le credenziali scambiate con il server
