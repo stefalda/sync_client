@@ -19,7 +19,6 @@ void main() {
   late FakeHttpHelper fakeHttp;
   late SyncRepository repository;
 
-  final refreshRegex = RegExp(r'/login/([^/]+)/refreshToken$');
 
   /// JWT finto: solo il payload conta (il client ne legge il claim `exp`).
   String jwtWithExp(Duration fromNow) {
