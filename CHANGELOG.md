@@ -1,3 +1,7 @@
+## 1.6.2
+- **Retry sul rate limit**: una risposta 429 di `/push` o `/pull` viene ritentata fino a 3 volte con attesa crescente (`rateLimitBaseDelay`, default 30s). Prima una libreria grande (chunk da 8 MB, più di 30 richieste al minuto) si interrompeva a metà.
+- Test: caso 429 + retry in `streaming_push_test.dart`.
+
 ## 1.6.1
 - **Fix**: se la configurazione di sync sparisce **durante** una sync (logout, reset o cancellazione concorrente), il cleanup interno (`_cancelSync`) esplodeva con `TypeError: type 'Null' is not a subtype of type 'FutureOr<SyncDetails>'`, sostituendo l'errore vero. Ora `_getTokenFromDB` è null-safe e le chiamate autenticate falliscono con `SyncException(syncConfigurationMissing)`.
 - Test: `test/repository/missing_config_test.dart`.

@@ -45,6 +45,12 @@ const kPullPageRows = 200;
 /// restituirne meno, così una pagina di cover non pesa centinaia di MB.
 const kPullPageMaxBytes = 8 * 1024 * 1024;
 
+/// Quante volte ritentare una richiesta bloccata dal rate limit del server
+/// (429). Il server consente 30 richieste al minuto su /push e /pull: una
+/// libreria grande con chunk da 8 MB ne fa più di 30 e senza retry la sync si
+/// interrompe a metà.
+const int kMaxRateLimitRetries = 3;
+
 /// Stima conservativa della dimensione JSON di una riga da inviare.
 ///
 /// Non serializza (sarebbe costoso su librerie grandi): somma le chiavi e i
@@ -126,6 +132,10 @@ class SyncRepository {
   /// le modifiche residue invece dell'intera libreria.
   final bool deletePushedRowsProgressively;
 
+  /// Attesa base quando il server risponde 429 (cresce linearmente a ogni
+  /// tentativo). Configurabile per rendere i test veloci.
+  final Duration rateLimitBaseDelay;
+
   //Constructor
   SyncRepository(
       {required this.sqliteWrapperSync,
@@ -136,7 +146,8 @@ class SyncRepository {
       this.maxBytesPerPush = kMaxBytesPerPush,
       this.maxRowsPerPull = kPullPageRows,
       this.maxBytesPerPull = kPullPageMaxBytes,
-      this.deletePushedRowsProgressively = true})
+      this.deletePushedRowsProgressively = true,
+      this.rateLimitBaseDelay = const Duration(seconds: 30)})
       : httpHelper = customHttpHelper ?? HttpHelper() {
     authenticationHelper = AuthenticationHelper(
         serverUrl: serverUrl,
@@ -484,6 +495,37 @@ class SyncRepository {
         dbName: dbName);
   }
 
+  /// Chiamata autenticata con retry sul rate limit (429).
+  Future<dynamic> _callWithRateLimitRetry(
+    String url,
+    String body, {
+    required String dbName,
+    required bool isPushOrPull,
+  }) async {
+    var attempt = 0;
+    while (true) {
+      try {
+        return await authenticationHelper.authenticatedCall(url, {},
+            body: body,
+            method: "POST",
+            dbName: dbName,
+            isPushOrPull: isPushOrPull,
+            syncController: syncController);
+      } on CustomHttpException catch (e) {
+        if (e.statusCode != 429 || attempt >= kMaxRateLimitRetries) rethrow;
+        attempt++;
+        final wait = rateLimitBaseDelay * attempt;
+        _debugPrint(
+            'Rate limit del server: attendo ${wait.inSeconds}s e riprovo ($attempt/$kMaxRateLimitRetries)');
+        syncController.add(SyncProgress(
+          status: SyncStatus.pushing,
+          message: 'Rate limit: attesa ${wait.inSeconds}s',
+        ));
+        await Future.delayed(wait);
+      }
+    }
+  }
+
   /// Perform the pull call
   Future<List<SyncData>> _pull(
       String clientId, int lastSync, List<SyncData> syncDataList,
@@ -505,13 +547,9 @@ class SyncRepository {
 
         final json = jsonEncode(clientChanges.toMap(skipRowData: true));
         // This call unexptectly returns even if it's awaited
-        dynamic result = await authenticationHelper.authenticatedCall(
-            "$serverUrl/pull/$realm/$clientId", {},
-            body: json,
-            method: "POST",
-            dbName: dbName,
-            isPushOrPull: true,
-            syncController: syncController);
+        dynamic result = await _callWithRateLimitRetry(
+            "$serverUrl/pull/$realm/$clientId", json,
+            dbName: dbName, isPushOrPull: true);
 
         api_sync_details.SyncDetails syncDetails =
             api_sync_details.SyncDetails.fromJson(result);
@@ -567,13 +605,9 @@ class SyncRepository {
 
     final json = jsonEncode(clientChanges.toMap(skipRowData: false));
     _debugPrint("PUSH ${syncDataList.length} rows");
-    dynamic result = await authenticationHelper.authenticatedCall(
-        "$serverUrl/push/$realm/$clientId", {},
-        body: json,
-        method: "POST",
-        dbName: dbName,
-        isPushOrPull: true,
-        syncController: syncController);
+    dynamic result = await _callWithRateLimitRetry(
+        "$serverUrl/push/$realm/$clientId", json,
+        dbName: dbName, isPushOrPull: true);
     SyncInfo syncInfo = SyncInfo.fromJson(result);
 
     return syncInfo;

@@ -296,4 +296,40 @@ void main() {
         .toSet();
     expect(pushedAfter, equals(guids.toSet().difference(firstChunk)));
   });
+
+  test('un 429 sul push viene ritentato (rate limit del server)', () async {
+    final retrying = SyncRepository(
+      sqliteWrapperSync: db,
+      serverUrl: 'http://localhost:8076',
+      realm: 'TEST_REALM',
+      customHttpHelper: fakeHttp,
+      // attesa minima: il test non deve durare 30 secondi
+      rateLimitBaseDelay: const Duration(milliseconds: 10),
+    );
+    await db.insert({
+      'docid': db.newUUID(),
+      'title': 'rate limited',
+      'payload': bytesOf(1024, 9),
+      'custom': 1,
+    }, 'docs', dbName: 'test');
+    fakeHttp.clearCalls();
+
+    // primo push: 429 del server, poi il retry va a buon fine
+    fakeHttp.queueError(
+      RegExp(r'/push/([^/]+)/([^/]+)$'),
+      CustomHttpException(statusCode: 429, message: 'Too many requests'),
+    );
+
+    await retrying.sync(dbName: 'test');
+
+    final pushCalls =
+        fakeHttp.calledUrls.where((u) => u.contains('/push/')).length;
+    expect(pushCalls, 2, reason: 'un 429 + un retry riuscito');
+    expect(
+      await db.query('SELECT COUNT(*) FROM sync_data',
+          singleResult: true, dbName: 'test'),
+      0,
+      reason: 'la coda deve essere vuota dopo il retry',
+    );
+  });
 }
