@@ -1,3 +1,7 @@
+## 1.6.3
+- **Schema version handshake**: `SyncRepository(schemaVersion: ...)` is sent with every pull; if another device of the same user reports a newer schema, the sync fails with `SyncExceptionType.schemaVersionMismatch` instead of applying rows with unknown columns (which `_addNullFields` would silently null). A server without the field behaves as before.
+- Test: `test/repository/schema_version_test.dart`.
+
 ## 1.6.2
 - **Rate limit retry**: a 429 from `/push` or `/pull` is retried up to 3 times with increasing backoff (`rateLimitBaseDelay`, default 30s). Previously a large library (8 MB chunks, more than 30 requests per minute) aborted mid-sync.
 - Test: 429 + retry case in `streaming_push_test.dart`.

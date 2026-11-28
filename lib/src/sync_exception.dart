@@ -8,6 +8,9 @@ enum SyncExceptionType {
   alreadySyncing,
   wrongOrExpiredPin,
   reloginNeeded,
+  /// Un altro device dell'utente usa uno schema più recente: aggiornare l'app
+  /// prima di sincronizzare (altrimenti si azzerano colonne sconosciute).
+  schemaVersionMismatch,
   generic
 }
 

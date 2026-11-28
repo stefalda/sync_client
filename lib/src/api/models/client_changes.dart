@@ -12,6 +12,9 @@ class ClientChanges {
   int? maxBytes;
   int? cursor;
 
+  /// Versione dello schema DB del client (l'app passa `kDBVersion`).
+  int? schemaVersion;
+
   static ClientChanges fromMap(Map jsonData) {
     return ClientChanges()
       ..clientId = jsonData['clientId']
@@ -35,6 +38,7 @@ class ClientChanges {
     if (limit != null) map['limit'] = limit!;
     if (maxBytes != null) map['maxBytes'] = maxBytes!;
     if (cursor != null) map['cursor'] = cursor!;
+    if (schemaVersion != null) map['schemaVersion'] = schemaVersion!;
     return map;
   }
 }

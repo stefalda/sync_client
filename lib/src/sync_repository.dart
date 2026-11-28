@@ -136,6 +136,11 @@ class SyncRepository {
   /// tentativo). Configurabile per rendere i test veloci.
   final Duration rateLimitBaseDelay;
 
+  /// Versione dello schema DB locale. Viene dichiarata al server: se un altro
+  /// device dell'utente ne usa una più alta la sync si ferma con
+  /// `schemaVersionMismatch`, invece di azzerare le colonne sconosciute.
+  final int schemaVersion;
+
   //Constructor
   SyncRepository(
       {required this.sqliteWrapperSync,
@@ -147,7 +152,8 @@ class SyncRepository {
       this.maxRowsPerPull = kPullPageRows,
       this.maxBytesPerPull = kPullPageMaxBytes,
       this.deletePushedRowsProgressively = true,
-      this.rateLimitBaseDelay = const Duration(seconds: 30)})
+      this.rateLimitBaseDelay = const Duration(seconds: 30),
+      this.schemaVersion = 1})
       : httpHelper = customHttpHelper ?? HttpHelper() {
     authenticationHelper = AuthenticationHelper(
         serverUrl: serverUrl,
@@ -543,6 +549,7 @@ class SyncRepository {
           ..limit = maxRowsPerPull
           ..maxBytes = maxBytesPerPull
           ..cursor = cursor
+          ..schemaVersion = schemaVersion
           ..changes = syncDataList;
 
         final json = jsonEncode(clientChanges.toMap(skipRowData: true));
@@ -553,6 +560,16 @@ class SyncRepository {
 
         api_sync_details.SyncDetails syncDetails =
             api_sync_details.SyncDetails.fromJson(result);
+
+        // Handshake di versione: se un altro device ha uno schema più recente
+        // non si applica nulla (rischioso: colonne sconosciute azzerate).
+        if (syncDetails.maxSchemaVersion > 0 &&
+            syncDetails.maxSchemaVersion > schemaVersion) {
+          throw SyncException(
+            "Another device uses a newer schema (${syncDetails.maxSchemaVersion} > $schemaVersion): update the app",
+            type: SyncExceptionType.schemaVersionMismatch,
+          );
+        }
 
         // Now remove from syncDataList the keys indicated by the server
         for (var rowguid in syncDetails.outdatedRowsGuid!) {

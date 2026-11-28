@@ -19,9 +19,13 @@ class SyncDetails {
   /// Cursore da rimandare per ottenere la pagina successiva.
   int nextCursor = 0;
 
+  /// Versione di schema più alta tra i device dell'utente (0 = server vecchio).
+  int maxSchemaVersion = 0;
+
   SyncDetails.fromJson(Map<String, dynamic> json) {
     hasMore = json['hasMore'] == true;
     nextCursor = (json['nextCursor'] as num?)?.toInt() ?? 0;
+    maxSchemaVersion = (json['maxSchemaVersion'] as num?)?.toInt() ?? 0;
     outdatedRowsGuid = json['outdatedRowsGuid'].cast<String>();
     if (json['data'] != null) {
       json['data'].forEach((v) {
